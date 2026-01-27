@@ -50,6 +50,7 @@ const WoodenFishApp: React.FC = () => {
   const [rosaryCount, setRosaryCount] = useState<number>(0);
   const [currentBead, setCurrentBead] = useState<number>(0);
   const lastScrollY = useRef<number>(0);
+  const hasScrolled = useRef<boolean>(false);
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -213,8 +214,9 @@ const WoodenFishApp: React.FC = () => {
         return Math.abs(gestureState.dy) > 10;
       },
       onPanResponderGrant: () => {
-        // 手势开始，记录起始位置
+        // 手势开始，记录起始位置和是否滚动过
         lastScrollY.current = 0;
+        hasScrolled.current = false;
       },
       onPanResponderMove: (_, gestureState) => {
         // 处理滑动手势
@@ -236,21 +238,26 @@ const WoodenFishApp: React.FC = () => {
 
           // 更新上次滚动位置
           lastScrollY.current = currentDistance;
+          // 标记已滚动
+          hasScrolled.current = true;
         }
       },
       onPanResponderRelease: () => {
-        // 手势结束时增加计数
-        const newCount = rosaryCount + 1;
-        setRosaryCount(newCount);
-        saveRosaryCount(newCount, currentBead);
+        // 只有滚动过才增加计数
+        if (hasScrolled.current) {
+          const newCount = rosaryCount + 1;
+          setRosaryCount(newCount);
+          saveRosaryCount(newCount, currentBead);
 
-        // 松手时的确认震动反馈
-        if (soundEnabled) {
-          Vibration.vibrate(100);
+          // 松手时的确认震动反馈
+          if (soundEnabled) {
+            Vibration.vibrate(100);
+          }
         }
 
         // 重置记录
         lastScrollY.current = 0;
+        hasScrolled.current = false;
       },
     })
   ).current;
