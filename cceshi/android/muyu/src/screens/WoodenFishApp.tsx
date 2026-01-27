@@ -225,24 +225,16 @@ const WoodenFishApp: React.FC = () => {
           const nextBead = (currentBead + scrollDirection + 108) % 108;
           setCurrentBead(nextBead);
 
-          // 滚动动画
-          const animDistance = scrollDirection * -112;
-          Animated.sequence([
-            Animated.timing(rosaryScrollAnim, {
-              toValue: animDistance,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-            Animated.timing(rosaryScrollAnim, {
-              toValue: 0,
-              duration: 0,
-              useNativeDriver: true,
-            }),
-          ]).start();
+          // 滚动动画：不移动，直接更新（消失效果）
+          Animated.timing(rosaryScrollAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }).start();
 
           // 震动反馈
           if (soundEnabled) {
-            Vibration.vibrate(10);
+            Vibration.vibrate(50);
           }
 
           // 重置手势状态，避免重复触发
@@ -257,7 +249,7 @@ const WoodenFishApp: React.FC = () => {
 
         // 松手时的确认震动反馈
         if (soundEnabled) {
-          Vibration.vibrate(50);
+          Vibration.vibrate(100);
         }
       },
     })
