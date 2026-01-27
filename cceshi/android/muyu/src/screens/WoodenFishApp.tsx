@@ -45,7 +45,10 @@ const WoodenFishApp: React.FC = () => {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [customSoundPath, setCustomSoundPath] = useState<string | null>(null);
   const [selectedWoodFishType, setSelectedWoodFishType] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState<'home' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'rosary' | 'profile'>('home');
+  const [rosaryCount, setRosaryCount] = useState<number>(0);
+  const [currentBead, setCurrentBead] = useState<number>(0);
+  const rosaryScrollAnim = useRef(new Animated.Value(0)).current;
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -60,6 +63,7 @@ const WoodenFishApp: React.FC = () => {
     loadSoundEnabled();
     loadCustomSound();
     loadWoodFishType();
+    loadRosaryCount();
   }, []);
 
   useEffect(() => {
@@ -74,7 +78,7 @@ const WoodenFishApp: React.FC = () => {
         return true;
       }
       // 如果在设置标签页，返回首页
-      if (activeTab === 'profile') {
+      if (activeTab === 'profile' || activeTab === 'rosary') {
         setActiveTab('home');
         return true;
       }
@@ -174,6 +178,77 @@ const WoodenFishApp: React.FC = () => {
     } catch (error) {
       console.error('Failed to load wood fish type:', error);
     }
+  };
+
+  const loadRosaryCount = async () => {
+    try {
+      const savedRosaryCount = await AsyncStorage.getItem('rosaryCount');
+      const savedCurrentBead = await AsyncStorage.getItem('currentBead');
+      if (savedRosaryCount) {
+        setRosaryCount(parseInt(savedRosaryCount, 10));
+      }
+      if (savedCurrentBead) {
+        setCurrentBead(parseInt(savedCurrentBead, 10));
+      }
+    } catch (error) {
+      console.error('Failed to load rosary count:', error);
+    }
+  };
+
+  const saveRosaryCount = async (newCount: number, newBead: number) => {
+    try {
+      await AsyncStorage.setItem('rosaryCount', newCount.toString());
+      await AsyncStorage.setItem('currentBead', newBead.toString());
+    } catch (error) {
+      console.error('Failed to save rosary count:', error);
+    }
+  };
+
+  const handleRosaryTap = () => {
+    const nextBead = (currentBead + 1) % 108;
+    const newCount = rosaryCount + 1;
+    
+    setCurrentBead(nextBead);
+    setRosaryCount(newCount);
+    saveRosaryCount(newCount, nextBead);
+
+    // 震动反馈
+    if (soundEnabled) {
+      Vibration.vibrate(30);
+    }
+
+    // 滚动动画
+    Animated.sequence([
+      Animated.timing(rosaryScrollAnim, {
+        toValue: -50,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(rosaryScrollAnim, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const resetRosaryCount = () => {
+    Alert.alert(
+      '重置念珠',
+      '确定要重置念珠计数吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确定',
+          onPress: () => {
+            setRosaryCount(0);
+            setCurrentBead(0);
+            saveRosaryCount(0, 0);
+          },
+          style: 'destructive',
+        },
+      ]
+    );
   };
 
 
@@ -485,6 +560,91 @@ const WoodenFishApp: React.FC = () => {
     </View>
   );
 
+  const renderRosaryScreen = () => {
+    // 生成显示的5颗珠子（上一颗、上两颗、当前、下两颗、下一颗）
+    const getVisibleBeads = () => {
+      const beads = [];
+      for (let i = -2; i <= 2; i++) {
+        let beadIndex = (currentBead + i + 108) % 108;
+        beads.push({
+          index: beadIndex,
+          distance: i,
+        });
+      }
+      return beads;
+    };
+
+    const visibleBeads = getVisibleBeads();
+
+    return (
+      <View style={styles.rosaryContainer}>
+        <View style={styles.rosaryHeader}>
+          <Text style={styles.rosaryCountText}>已念 {rosaryCount} 颗</Text>
+          <TouchableOpacity onPress={resetRosaryCount} activeOpacity={0.7} style={styles.resetRosaryButton}>
+            <Text style={styles.resetRosaryIcon}>↻</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.rosaryBeadsContainer}>
+          <Animated.View
+            style={{
+              transform: [{ translateY: rosaryScrollAnim }],
+            }}>
+            {visibleBeads.map((bead, index) => {
+              const isCurrentBead = bead.distance === 0;
+              const distance = Math.abs(bead.distance);
+              
+              // 根据距离设置珠子样式
+              let beadSize = 50 - distance * 15;
+              let beadOpacity = 1 - distance * 0.25;
+              let beadColor = isCurrentBead ? '#D4AF37' : '#C0C0C0';
+              let borderWidth = isCurrentBead ? 3 : 1;
+
+              return (
+                <View
+                  key={`${bead.index}-${index}`}
+                  style={[
+                    styles.rosaryBeadWrapper,
+                    { height: 80 },
+                  ]}>
+                  <View
+                    style={[
+                      styles.rosaryBead,
+                      {
+                        width: beadSize,
+                        height: beadSize,
+                        borderRadius: beadSize / 2,
+                        opacity: beadOpacity,
+                        backgroundColor: beadColor,
+                        borderWidth: borderWidth,
+                        borderColor: isCurrentBead ? '#FFD700' : '#888',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 4,
+                        elevation: isCurrentBead ? 8 : 3,
+                      },
+                    ]}
+                  />
+                </View>
+              );
+            })}
+          </Animated.View>
+        </View>
+
+        <View style={styles.rosaryFooter}>
+          <Text style={styles.rosaryFooterText}>当前: 第 {currentBead + 1} / 108 颗</Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.rosaryTapArea}
+          activeOpacity={1}
+          onPress={handleRosaryTap}
+        />
+      </View>
+    );
+  };
+
   const renderProfileScreen = () => (
     <View style={styles.settingsContainer}>
       <Text style={styles.profileTitle}>个人中心</Text>
@@ -511,7 +671,8 @@ const WoodenFishApp: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {activeTab === 'home' ? renderHomeScreen() : renderProfileScreen()}
+      {activeTab === 'home' ? renderHomeScreen() : 
+       activeTab === 'rosary' ? renderRosaryScreen() : renderProfileScreen()}
 
       <View style={styles.bottomNav}>
         <TouchableOpacity
@@ -519,6 +680,12 @@ const WoodenFishApp: React.FC = () => {
           activeOpacity={0.7}
           onPress={() => setActiveTab('home')}>
           <Text style={[styles.navButtonText, activeTab === 'home' && styles.navButtonTextActive]}>木鱼</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.navButton, activeTab === 'rosary' && styles.navButtonActive]}
+          activeOpacity={0.7}
+          onPress={() => setActiveTab('rosary')}>
+          <Text style={[styles.navButtonText, activeTab === 'rosary' && styles.navButtonTextActive]}>念珠</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.navButton, activeTab === 'profile' && styles.navButtonActive]}
@@ -844,11 +1011,6 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     paddingBottom: 30,
   },
-  profileTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
-  },
   menuContainer: {
     marginTop: 20,
   },
@@ -1079,6 +1241,71 @@ const styles = StyleSheet.create({
   },
   woodFishButtonTextActive: {
     color: '#fff',
+  },
+  rosaryContainer: {
+    flex: 1,
+    backgroundColor: '#faf5e6',
+  },
+  rosaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 45,
+    paddingBottom: 20,
+    backgroundColor: '#faf5e6',
+  },
+  rosaryCountText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#8B4513',
+  },
+  resetRosaryButton: {
+    padding: 0,
+    backgroundColor: '#e0d5c1',
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resetRosaryIcon: {
+    fontSize: 22,
+    color: '#8B4513',
+    lineHeight: 32,
+    textAlign: 'center',
+    marginTop: -3,
+  },
+  rosaryBeadsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  rosaryBeadWrapper: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rosaryBead: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rosaryFooter: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    alignItems: 'center',
+  },
+  rosaryFooterText: {
+    fontSize: 18,
+    color: '#8B4513',
+    fontWeight: 'bold',
+  },
+  rosaryTapArea: {
+    position: 'absolute',
+    width: '100%',
+    height: '70%',
+    top: '15%',
+    left: 0,
   },
 });
 
