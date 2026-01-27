@@ -12,6 +12,8 @@ import {
   TextInput,
   Alert,
   PanResponder,
+  Image,
+  Dimensions,
 } from 'react-native';
 import DocumentPicker, {types} from 'react-native-document-picker';
 import WoodFish from '../components/WoodFish';
@@ -613,12 +615,13 @@ const WoodenFishApp: React.FC = () => {
             {visibleBeads.map((bead, index) => {
               const isCurrentBead = bead.distance === 0;
               const distance = Math.abs(bead.distance);
-              
-              // 根据距离设置珠子样式（原始基础上增大40%）
-              let beadSize = (50 - distance * 15) * 1.4;
-              let beadOpacity = 1 - distance * 0.25;
-              let beadColor = isCurrentBead ? '#D4AF37' : '#C0C0C0';
-              let borderWidth = isCurrentBead ? 3 : 1;
+
+              // 根据距离设置珠子样式和缩放
+              const baseSize = 70; // 基础大小70px
+              const scaleFactor = isCurrentBead ? 1.4 : 1.0 - distance * 0.2;
+              const beadSize = baseSize * scaleFactor;
+              const beadOpacity = isCurrentBead ? 1.0 : 1.0 - distance * 0.2;
+              const borderWidth = isCurrentBead ? 3 : 1;
 
               return (
                 <View
@@ -627,24 +630,19 @@ const WoodenFishApp: React.FC = () => {
                     styles.rosaryBeadWrapper,
                     { height: 112 },
                   ]}>
-                  <View
+                  <Image
+                    source={require('../../assets/rosary_bead.png')}
                     style={[
-                      styles.rosaryBead,
+                      styles.rosaryBeadImage,
                       {
                         width: beadSize,
                         height: beadSize,
-                        borderRadius: beadSize / 2,
                         opacity: beadOpacity,
-                        backgroundColor: beadColor,
                         borderWidth: borderWidth,
                         borderColor: isCurrentBead ? '#FFD700' : '#888',
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.3,
-                        shadowRadius: 4,
-                        elevation: isCurrentBead ? 8 : 3,
                       },
                     ]}
+                    resizeMode="contain"
                   />
                 </View>
               );
@@ -1307,6 +1305,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rosaryBead: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rosaryBeadImage: {
     justifyContent: 'center',
     alignItems: 'center',
   },
