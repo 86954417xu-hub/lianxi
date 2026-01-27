@@ -219,7 +219,7 @@ const WoodenFishApp: React.FC = () => {
       },
       onPanResponderMove: (_, gestureState) => {
         // 处理滑动手势
-        const threshold = 50; // 滑动阈值，超过这个距离就滚动一颗珠子
+        const threshold = 100; // 滑动阈值，超过这个距离就滚动一颗珠子
         const scrollDirection = gestureState.dy < 0 ? 1 : -1; // 向上滑动为1，向下滑动为-1
         const currentDistance = Math.abs(gestureState.dy);
 
