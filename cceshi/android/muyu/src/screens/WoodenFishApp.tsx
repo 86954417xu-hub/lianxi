@@ -49,6 +49,7 @@ const WoodenFishApp: React.FC = () => {
   const [rosaryCount, setRosaryCount] = useState<number>(0);
   const [currentBead, setCurrentBead] = useState<number>(0);
   const rosaryScrollAnim = useRef(new Animated.Value(0)).current;
+  const rosaryIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -204,33 +205,46 @@ const WoodenFishApp: React.FC = () => {
     }
   };
 
-  const handleRosaryTap = () => {
-    const nextBead = (currentBead + 1) % 108;
-    const newCount = rosaryCount + 1;
-    
-    setCurrentBead(nextBead);
-    setRosaryCount(newCount);
-    saveRosaryCount(newCount, nextBead);
+  const handleRosaryTapIn = () => {
+    // 按下时开始连续滚动
+    if (rosaryIntervalRef.current === null) {
+      rosaryIntervalRef.current = setInterval(() => {
+        const nextBead = (currentBead + 1) % 108;
+        setCurrentBead(nextBead);
 
-    // 震动反馈
-    if (soundEnabled) {
-      Vibration.vibrate(30);
+        // 震动反馈
+        if (soundEnabled) {
+          Vibration.vibrate(10);
+        }
+      }, 100); // 每100ms滚动一次
     }
-
-    // 真实滚动效果：向上滚动一颗珠子的距离（96px）
-    Animated.sequence([
-      Animated.timing(rosaryScrollAnim, {
-        toValue: -96,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(rosaryScrollAnim, {
-        toValue: 0,
-        duration: 0,
-        useNativeDriver: true,
-      }),
-    ]).start();
   };
+
+  const handleRosaryTapOut = () => {
+    // 松手时停止滚动并增加计数
+    if (rosaryIntervalRef.current) {
+      clearInterval(rosaryIntervalRef.current);
+      rosaryIntervalRef.current = null;
+
+      const newCount = rosaryCount + 1;
+      setRosaryCount(newCount);
+      saveRosaryCount(newCount, currentBead);
+
+      // 松手时的震动反馈
+      if (soundEnabled) {
+        Vibration.vibrate(30);
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      // 清理定时器
+      if (rosaryIntervalRef.current) {
+        clearInterval(rosaryIntervalRef.current);
+      }
+    };
+  }, []);
 
   const resetRosaryCount = () => {
     Alert.alert(
@@ -576,14 +590,14 @@ const WoodenFishApp: React.FC = () => {
 
     const visibleBeads = getVisibleBeads();
 
-    return (
-      <View style={styles.rosaryContainer}>
-        <View style={styles.rosaryHeader}>
-          <Text style={styles.rosaryCountText}>已念 {rosaryCount} 颗</Text>
-          <TouchableOpacity onPress={resetRosaryCount} activeOpacity={0.7} style={styles.resetRosaryButton}>
-            <Text style={styles.resetRosaryIcon}>↻</Text>
-          </TouchableOpacity>
-        </View>
+      return (
+        <View style={styles.rosaryContainer}>
+          <View style={styles.rosaryHeader}>
+            <Text style={styles.rosaryCountText}>已祈福 {rosaryCount} 次</Text>
+            <TouchableOpacity onPress={resetRosaryCount} activeOpacity={0.7} style={styles.resetRosaryButton}>
+              <Text style={styles.resetRosaryIcon}>↻</Text>
+            </TouchableOpacity>
+          </View>
 
         <View style={styles.rosaryBeadsContainer}>
           <Animated.View
@@ -637,7 +651,8 @@ const WoodenFishApp: React.FC = () => {
         <TouchableOpacity
           style={styles.rosaryTapArea}
           activeOpacity={1}
-          onPress={handleRosaryTap}
+          onPressIn={handleRosaryTapIn}
+          onPressOut={handleRosaryTapOut}
         />
       </View>
     );
