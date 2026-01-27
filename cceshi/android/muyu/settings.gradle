@@ -1,0 +1,8 @@
+include ':app'
+include ':app'
+include ':app'
+include ':app'
+include ':mylibrary'
+include ':app'
+project(':app').projectDir = new File(rootDir, 'android/app/')
+include ':app'
