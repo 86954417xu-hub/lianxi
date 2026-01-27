@@ -239,9 +239,11 @@ const WoodenFishApp: React.FC = () => {
     setCount(newCount);
     saveCount(newCount);
 
-    // 播放木鱼声音
+    // 播放木鱼声音和震动
     if (soundEnabled) {
       try {
+        // 直接调用震动,确保荣耀手机震动生效
+        Vibration.vibrate(50);
         soundManager.playWoodFishSound();
       } catch (error) {
         console.log('Sound error:', error);

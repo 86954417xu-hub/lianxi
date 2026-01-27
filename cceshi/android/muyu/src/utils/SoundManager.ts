@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, Vibration } from 'react-native';
 
 export class SoundManager {
   private static instance: SoundManager;
@@ -15,11 +15,10 @@ export class SoundManager {
 
   public async playWoodFishSound(): Promise<void> {
     try {
-      // 简单实现：使用震动作为反馈
-      // 声音功能需要音频文件，这里暂时使用震动替代
+      // 使用震动反馈
       if (Platform.OS === 'android') {
-        const { Vibration } = require('react-native');
-        Vibration.vibrate(30);
+        // 震动50ms,荣耀手机可能需要更长的震动时间
+        Vibration.vibrate(50);
       }
     } catch (error) {
       console.log('Sound error:', error);
