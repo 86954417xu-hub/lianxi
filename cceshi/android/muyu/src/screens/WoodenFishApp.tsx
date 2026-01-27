@@ -212,11 +212,25 @@ const WoodenFishApp: React.FC = () => {
         const nextBead = (currentBead + 1) % 108;
         setCurrentBead(nextBead);
 
-        // 震动反馈
+        // 真实滚动效果：向上滚动一颗珠子的距离（96px）
+        Animated.sequence([
+          Animated.timing(rosaryScrollAnim, {
+            toValue: -96,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+          Animated.timing(rosaryScrollAnim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]).start();
+
+        // 滚动时的震动反馈
         if (soundEnabled) {
           Vibration.vibrate(10);
         }
-      }, 100); // 每100ms滚动一次
+      }, 120); // 每120ms滚动一次（包含动画时间）
     }
   };
 
@@ -230,9 +244,9 @@ const WoodenFishApp: React.FC = () => {
       setRosaryCount(newCount);
       saveRosaryCount(newCount, currentBead);
 
-      // 松手时的震动反馈
+      // 松手时的确认震动反馈
       if (soundEnabled) {
-        Vibration.vibrate(30);
+        Vibration.vibrate(50);
       }
     }
   };
