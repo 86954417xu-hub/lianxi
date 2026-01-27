@@ -11,6 +11,7 @@ import {
   Vibration,
   TextInput,
   Alert,
+  PanResponder,
 } from 'react-native';
 import DocumentPicker, {types} from 'react-native-document-picker';
 import WoodFish from '../components/WoodFish';
@@ -49,7 +50,6 @@ const WoodenFishApp: React.FC = () => {
   const [rosaryCount, setRosaryCount] = useState<number>(0);
   const [currentBead, setCurrentBead] = useState<number>(0);
   const rosaryScrollAnim = useRef(new Animated.Value(0)).current;
-  const rosaryIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -205,60 +205,63 @@ const WoodenFishApp: React.FC = () => {
     }
   };
 
-  const handleRosaryTapIn = () => {
-    // 按下时开始连续滚动
-    if (rosaryIntervalRef.current === null) {
-      rosaryIntervalRef.current = setInterval(() => {
-        const nextBead = (currentBead + 1) % 108;
-        setCurrentBead(nextBead);
+  const rosaryPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // 只有垂直滑动超过阈值才捕获手势
+        return Math.abs(gestureState.dy) > 10;
+      },
+      onPanResponderGrant: () => {
+        // 手势开始
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // 处理滑动手势
+        const threshold = 50; // 滑动阈值，超过这个距离就滚动一颗珠子
+        const scrollDirection = gestureState.dy < 0 ? 1 : -1; // 向上滑动为1，向下滑动为-1
+        const absDistance = Math.abs(gestureState.dy);
 
-        // 真实滚动效果：向上滚动一颗珠子的距离（112px）
-        Animated.sequence([
-          Animated.timing(rosaryScrollAnim, {
-            toValue: -112,
-            duration: 100,
-            useNativeDriver: true,
-          }),
-          Animated.timing(rosaryScrollAnim, {
-            toValue: 0,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-        ]).start();
+        if (absDistance >= threshold) {
+          const nextBead = (currentBead + scrollDirection + 108) % 108;
+          setCurrentBead(nextBead);
 
-        // 滚动时的震动反馈
-        if (soundEnabled) {
-          Vibration.vibrate(10);
+          // 滚动动画
+          const animDistance = scrollDirection * -112;
+          Animated.sequence([
+            Animated.timing(rosaryScrollAnim, {
+              toValue: animDistance,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(rosaryScrollAnim, {
+              toValue: 0,
+              duration: 0,
+              useNativeDriver: true,
+            }),
+          ]).start();
+
+          // 震动反馈
+          if (soundEnabled) {
+            Vibration.vibrate(10);
+          }
+
+          // 重置手势状态，避免重复触发
+          gestureState.dy = 0;
         }
-      }, 120); // 每120ms滚动一次（包含动画时间）
-    }
-  };
+      },
+      onPanResponderRelease: () => {
+        // 手势结束时增加计数
+        const newCount = rosaryCount + 1;
+        setRosaryCount(newCount);
+        saveRosaryCount(newCount, currentBead);
 
-  const handleRosaryTapOut = () => {
-    // 松手时停止滚动并增加计数
-    if (rosaryIntervalRef.current) {
-      clearInterval(rosaryIntervalRef.current);
-      rosaryIntervalRef.current = null;
-
-      const newCount = rosaryCount + 1;
-      setRosaryCount(newCount);
-      saveRosaryCount(newCount, currentBead);
-
-      // 松手时的确认震动反馈
-      if (soundEnabled) {
-        Vibration.vibrate(50);
-      }
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      // 清理定时器
-      if (rosaryIntervalRef.current) {
-        clearInterval(rosaryIntervalRef.current);
-      }
-    };
-  }, []);
+        // 松手时的确认震动反馈
+        if (soundEnabled) {
+          Vibration.vibrate(50);
+        }
+      },
+    })
+  ).current;
 
   const resetRosaryCount = () => {
     Alert.alert(
@@ -662,11 +665,13 @@ const WoodenFishApp: React.FC = () => {
 
 
 
-        <TouchableOpacity
+
+
+
+
+        <View
           style={styles.rosaryTapArea}
-          activeOpacity={1}
-          onPressIn={handleRosaryTapIn}
-          onPressOut={handleRosaryTapOut}
+          {...rosaryPanResponder.panHandlers}
         />
       </View>
     );
