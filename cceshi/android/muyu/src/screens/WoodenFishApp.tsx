@@ -487,8 +487,21 @@ const WoodenFishApp: React.FC = () => {
 
   const renderProfileScreen = () => (
     <View style={styles.settingsContainer}>
+      <Text style={styles.profileTitle}>个人中心</Text>
       <TouchableOpacity style={styles.suggestionButton}>
         <Text style={styles.suggestionButtonText}>该做什么功能呢</Text>
+        <Text style={styles.suggestionArrow}>›</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.suggestionButton}>
+        <Text style={styles.suggestionButtonText}>隐私政策</Text>
+        <Text style={styles.suggestionArrow}>›</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.suggestionButton}>
+        <Text style={styles.suggestionButtonText}>用户协议</Text>
+        <Text style={styles.suggestionArrow}>›</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.suggestionButton}>
+        <Text style={styles.suggestionButtonText}>意见反馈</Text>
         <Text style={styles.suggestionArrow}>›</Text>
       </TouchableOpacity>
     </View>
@@ -511,7 +524,7 @@ const WoodenFishApp: React.FC = () => {
           style={[styles.navButton, activeTab === 'profile' && styles.navButtonActive]}
           activeOpacity={0.7}
           onPress={() => setActiveTab('profile')}>
-          <Text style={[styles.navButtonText, activeTab === 'profile' && styles.navButtonTextActive]}>设置</Text>
+          <Text style={[styles.navButtonText, activeTab === 'profile' && styles.navButtonTextActive]}>我的</Text>
         </TouchableOpacity>
       </View>
 
@@ -863,7 +876,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingTop: 40,
-    padding: 20,
+  },
+  profileTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 40,
   },
   suggestionButton: {
     flexDirection: 'row',
