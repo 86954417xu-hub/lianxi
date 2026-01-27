@@ -50,6 +50,7 @@ const WoodenFishApp: React.FC = () => {
   const [rosaryCount, setRosaryCount] = useState<number>(0);
   const [currentBead, setCurrentBead] = useState<number>(0);
   const rosaryScrollAnim = useRef(new Animated.Value(0)).current;
+  const lastScrollY = useRef<number>(0);
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -213,32 +214,44 @@ const WoodenFishApp: React.FC = () => {
         return Math.abs(gestureState.dy) > 10;
       },
       onPanResponderGrant: () => {
-        // 手势开始
+        // 手势开始，记录起始位置
+        lastScrollY.current = 0;
       },
       onPanResponderMove: (_, gestureState) => {
         // 处理滑动手势
         const threshold = 50; // 滑动阈值，超过这个距离就滚动一颗珠子
         const scrollDirection = gestureState.dy < 0 ? 1 : -1; // 向上滑动为1，向下滑动为-1
-        const absDistance = Math.abs(gestureState.dy);
+        const currentDistance = Math.abs(gestureState.dy);
 
-        if (absDistance >= threshold) {
+        // 计算从上次滚动后的相对距离
+        const relativeDistance = currentDistance - lastScrollY.current;
+
+        if (relativeDistance >= threshold) {
           const nextBead = (currentBead + scrollDirection + 108) % 108;
           setCurrentBead(nextBead);
 
-          // 滚动动画：不移动，直接更新（消失效果）
-          Animated.timing(rosaryScrollAnim, {
-            toValue: 0,
-            duration: 150,
-            useNativeDriver: true,
-          }).start();
+          // 滚动动画
+          const animDistance = scrollDirection * -112;
+          Animated.sequence([
+            Animated.timing(rosaryScrollAnim, {
+              toValue: animDistance,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(rosaryScrollAnim, {
+              toValue: 0,
+              duration: 0,
+              useNativeDriver: true,
+            }),
+          ]).start();
 
           // 震动反馈
           if (soundEnabled) {
             Vibration.vibrate(50);
           }
 
-          // 重置手势状态，避免重复触发
-          gestureState.dy = 0;
+          // 更新上次滚动位置
+          lastScrollY.current = currentDistance;
         }
       },
       onPanResponderRelease: () => {
@@ -251,6 +264,9 @@ const WoodenFishApp: React.FC = () => {
         if (soundEnabled) {
           Vibration.vibrate(100);
         }
+
+        // 重置记录
+        lastScrollY.current = 0;
       },
     })
   ).current;
