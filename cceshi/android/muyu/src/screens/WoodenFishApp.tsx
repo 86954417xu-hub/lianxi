@@ -217,16 +217,16 @@ const WoodenFishApp: React.FC = () => {
       Vibration.vibrate(30);
     }
 
-    // 滚动动画
+    // 真实滚动效果：向上滚动一颗珠子的距离（80px）
     Animated.sequence([
       Animated.timing(rosaryScrollAnim, {
-        toValue: -50,
-        duration: 100,
+        toValue: -80,
+        duration: 200,
         useNativeDriver: true,
       }),
       Animated.timing(rosaryScrollAnim, {
         toValue: 0,
-        duration: 100,
+        duration: 0,
         useNativeDriver: true,
       }),
     ]).start();
@@ -632,9 +632,7 @@ const WoodenFishApp: React.FC = () => {
           </Animated.View>
         </View>
 
-        <View style={styles.rosaryFooter}>
-          <Text style={styles.rosaryFooterText}>当前: 第 {currentBead + 1} / 108 颗</Text>
-        </View>
+
 
         <TouchableOpacity
           style={styles.rosaryTapArea}
@@ -1289,16 +1287,6 @@ const styles = StyleSheet.create({
   rosaryBead: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  rosaryFooter: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-    alignItems: 'center',
-  },
-  rosaryFooterText: {
-    fontSize: 18,
-    color: '#8B4513',
-    fontWeight: 'bold',
   },
   rosaryTapArea: {
     position: 'absolute',
