@@ -212,10 +212,10 @@ const WoodenFishApp: React.FC = () => {
         const nextBead = (currentBead + 1) % 108;
         setCurrentBead(nextBead);
 
-        // 真实滚动效果：向上滚动一颗珠子的距离（96px）
+        // 真实滚动效果：向上滚动一颗珠子的距离（112px）
         Animated.sequence([
           Animated.timing(rosaryScrollAnim, {
-            toValue: -96,
+            toValue: -112,
             duration: 100,
             useNativeDriver: true,
           }),
@@ -622,8 +622,8 @@ const WoodenFishApp: React.FC = () => {
               const isCurrentBead = bead.distance === 0;
               const distance = Math.abs(bead.distance);
               
-              // 根据距离设置珠子样式（增大20%）
-              let beadSize = (50 - distance * 15) * 1.2;
+              // 根据距离设置珠子样式（原始基础上增大40%）
+              let beadSize = (50 - distance * 15) * 1.4;
               let beadOpacity = 1 - distance * 0.25;
               let beadColor = isCurrentBead ? '#D4AF37' : '#C0C0C0';
               let borderWidth = isCurrentBead ? 3 : 1;
@@ -633,7 +633,7 @@ const WoodenFishApp: React.FC = () => {
                   key={`${bead.index}-${index}`}
                   style={[
                     styles.rosaryBeadWrapper,
-                    { height: 96 },
+                    { height: 112 },
                   ]}>
                   <View
                     style={[
