@@ -49,7 +49,6 @@ const WoodenFishApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'rosary' | 'profile'>('home');
   const [rosaryCount, setRosaryCount] = useState<number>(0);
   const [currentBead, setCurrentBead] = useState<number>(0);
-  const rosaryScrollAnim = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef<number>(0);
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -230,22 +229,7 @@ const WoodenFishApp: React.FC = () => {
           const nextBead = (currentBead + scrollDirection + 108) % 108;
           setCurrentBead(nextBead);
 
-          // 滚动动画
-          const animDistance = scrollDirection * -112;
-          Animated.sequence([
-            Animated.timing(rosaryScrollAnim, {
-              toValue: animDistance,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-            Animated.timing(rosaryScrollAnim, {
-              toValue: 0,
-              duration: 0,
-              useNativeDriver: true,
-            }),
-          ]).start();
-
-          // 震动反馈
+          // 仅震动反馈，无位移动画
           if (soundEnabled) {
             Vibration.vibrate(50);
           }
@@ -600,20 +584,14 @@ const WoodenFishApp: React.FC = () => {
   );
 
   const renderRosaryScreen = () => {
-    // 生成显示的5颗珠子（上一颗、上两颗、当前、下两颗、下一颗）
-    const getVisibleBeads = () => {
-      const beads = [];
-      for (let i = -2; i <= 2; i++) {
-        let beadIndex = (currentBead + i + 108) % 108;
-        beads.push({
-          index: beadIndex,
-          distance: i,
-        });
-      }
-      return beads;
-    };
-
-    const visibleBeads = getVisibleBeads();
+    // 始终显示固定的5颗珠子（位置固定，只改变显示内容）
+    const visibleBeads = [
+      { index: (currentBead - 2 + 108) % 108, distance: -2 },
+      { index: (currentBead - 1 + 108) % 108, distance: -1 },
+      { index: currentBead, distance: 0 },
+      { index: (currentBead + 1) % 108, distance: 1 },
+      { index: (currentBead + 2) % 108, distance: 2 },
+    ];
 
       return (
         <View style={styles.rosaryContainer}>
@@ -625,10 +603,6 @@ const WoodenFishApp: React.FC = () => {
           </View>
 
         <View style={styles.rosaryBeadsContainer}>
-          <Animated.View
-            style={{
-              transform: [{ translateY: rosaryScrollAnim }],
-            }}>
             {visibleBeads.map((bead, index) => {
               const isCurrentBead = bead.distance === 0;
               const distance = Math.abs(bead.distance);
@@ -668,7 +642,6 @@ const WoodenFishApp: React.FC = () => {
                 </View>
               );
             })}
-          </Animated.View>
         </View>
 
 
