@@ -22,8 +22,8 @@ import {soundManager} from '../utils/SoundManager';
 interface FloatingText {
   id: number;
   text: string;
-  left: number | string;
-  top: number | string;
+  left: string;
+  top: string;
   opacity: Animated.Value;
   translateY: Animated.Value;
 }
@@ -32,6 +32,7 @@ const WoodenFishApp: React.FC = () => {
   const [count, setCount] = useState<number>(0);
   const [woodFishImage, setWoodFishImage] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [floatingText, setFloatingText] = useState<string>('功德+1');
   const [customText, setCustomText] = useState<string>('');
   const [showTextEdit, setShowTextEdit] = useState<boolean>(false);
@@ -435,6 +436,9 @@ const WoodenFishApp: React.FC = () => {
             <Text style={styles.resetCountIcon}>↻</Text>
           </TouchableOpacity>
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowSettingsModal(true)} activeOpacity={0.7} style={styles.settingsButtonSmall}>
+          <Text style={styles.settingsIcon}>⚙</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.fishContainer}>
@@ -468,7 +472,7 @@ const WoodenFishApp: React.FC = () => {
               opacity: item.opacity,
               transform: [{translateY: item.translateY}],
             },
-          ]}>
+          ] as any}>
           <Text style={[styles.floatingTextContent, {color: textColor}]}>{item.text}</Text>
         </Animated.View>
       ))}
@@ -483,58 +487,9 @@ const WoodenFishApp: React.FC = () => {
 
   const renderProfileScreen = () => (
     <View style={styles.settingsContainer}>
-      <Text style={styles.title}>设置</Text>
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={handleWoodFishUpload}>
-        <Text style={styles.settingsButtonText}>上传自定义图片</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={openTextEdit}
-        activeOpacity={0.7}>
-        <Text style={styles.settingsButtonText}>修改漂浮文案 ({floatingText})</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={() => setShowColorPicker(true)}
-        activeOpacity={0.7}>
-        <Text style={styles.settingsButtonText}>修改漂浮文字颜色</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={toggleSound}
-        activeOpacity={0.7}>
-        <Text style={styles.settingsButtonText}>音效: {soundEnabled ? '开启' : '关闭'}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={handleAudioUpload}
-        activeOpacity={0.7}>
-        <Text style={styles.settingsButtonText}>上传自定义音效</Text>
-      </TouchableOpacity>
-      <View style={styles.woodFishSelector}>
-        <Text style={styles.woodFishSelectorTitle}>选择木鱼样式</Text>
-        <View style={styles.woodFishButtons}>
-          <TouchableOpacity
-            style={[styles.woodFishButton, selectedWoodFishType === 1 && styles.woodFishButtonActive]}
-            onPress={() => handleWoodFishTypeChange(1)}>
-            <Text style={[styles.woodFishButtonText, selectedWoodFishType === 1 && styles.woodFishButtonTextActive]}>木鱼 1</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.woodFishButton, selectedWoodFishType === 2 && styles.woodFishButtonActive]}
-            onPress={() => handleWoodFishTypeChange(2)}>
-            <Text style={[styles.woodFishButtonText, selectedWoodFishType === 2 && styles.woodFishButtonTextActive]}>木鱼 2</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <TouchableOpacity style={styles.resetButton} onPress={resetAllSettings}>
-        <Text style={styles.resetButtonText}>恢复默认</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => setActiveTab('home')}>
-        <Text style={styles.backButtonText}>返回首页</Text>
+      <TouchableOpacity style={styles.suggestionButton}>
+        <Text style={styles.suggestionButtonText}>该做什么功能呢</Text>
+        <Text style={styles.suggestionArrow}>›</Text>
       </TouchableOpacity>
     </View>
   );
@@ -692,6 +647,72 @@ const WoodenFishApp: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={showSettingsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSettingsModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.settingsModalContent]}>
+            <Text style={styles.modalTitle}>设置</Text>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={handleWoodFishUpload}>
+              <Text style={styles.settingsButtonText}>上传自定义图片</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={openTextEdit}
+              activeOpacity={0.7}>
+              <Text style={styles.settingsButtonText}>修改漂浮文案 ({floatingText})</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => setShowColorPicker(true)}
+              activeOpacity={0.7}>
+              <Text style={styles.settingsButtonText}>修改漂浮文字颜色</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={toggleSound}
+              activeOpacity={0.7}>
+              <Text style={styles.settingsButtonText}>音效: {soundEnabled ? '开启' : '关闭'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={handleAudioUpload}
+              activeOpacity={0.7}>
+              <Text style={styles.settingsButtonText}>上传自定义音效</Text>
+            </TouchableOpacity>
+            <View style={styles.woodFishSelector}>
+              <Text style={styles.woodFishSelectorTitle}>选择木鱼样式</Text>
+              <View style={styles.woodFishButtons}>
+                <TouchableOpacity
+                  style={[styles.woodFishButton, selectedWoodFishType === 1 && styles.woodFishButtonActive]}
+                  onPress={() => handleWoodFishTypeChange(1)}>
+                  <Text style={[styles.woodFishButtonText, selectedWoodFishType === 1 && styles.woodFishButtonTextActive]}>木鱼 1</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.woodFishButton, selectedWoodFishType === 2 && styles.woodFishButtonActive]}
+                  onPress={() => handleWoodFishTypeChange(2)}>
+                  <Text style={[styles.woodFishButtonText, selectedWoodFishType === 2 && styles.woodFishButtonTextActive]}>木鱼 2</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.resetButton} onPress={resetAllSettings}>
+              <Text style={styles.resetButtonText}>恢复默认</Text>
+            </TouchableOpacity>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowSettingsModal(false)}>
+                <Text style={styles.modalButtonText}>关闭</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -713,7 +734,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 40,
+    paddingLeft: 20,
+    paddingRight: 10,
+    paddingTop: 45,
     paddingBottom: 20,
   },
   countContainer: {
@@ -734,14 +757,29 @@ const styles = StyleSheet.create({
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    textAlign: 'center',
+    textAlignVertical: 'center',
   },
   resetCountIcon: {
-    fontSize: 18,
+    fontSize: 22,
+    color: '#666',
+    lineHeight: 32,
+    textAlign: 'center',
+    marginTop: -3,
+  },
+  settingsIcon: {
+    fontSize: 24,
     color: '#666',
     lineHeight: 32,
   },
-  settingsIcon: {
-    fontSize: 32,
+  settingsButtonSmall: {
+    padding: 0,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   fishContainer: {
     flex: 1,
@@ -822,23 +860,46 @@ const styles = StyleSheet.create({
   },
   settingsContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: 40,
     padding: 20,
-    gap: 15,
+  },
+  suggestionButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    width: '100%',
+  },
+  suggestionButtonText: {
+    color: '#333',
+    fontSize: 18,
+    textAlign: 'left',
+  },
+  suggestionArrow: {
+    color: '#999',
+    fontSize: 24,
+    fontWeight: '300',
+  },
+  settingsModalContent: {
+    width: '90%',
+    maxHeight: '80%',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 30,
+    marginBottom: 20,
     color: '#333',
   },
   settingsButton: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 40,
-    paddingVertical: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 25,
-    width: '80%',
+    width: '100%',
+    marginBottom: 10,
   },
   settingsButtonText: {
     color: 'white',
@@ -848,11 +909,12 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     backgroundColor: '#FF9800',
-    paddingHorizontal: 40,
-    paddingVertical: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 25,
-    width: '80%',
-    marginTop: 20,
+    width: '100%',
+    marginTop: 10,
+    marginBottom: 10,
   },
   resetButtonText: {
     color: 'white',
@@ -967,13 +1029,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   woodFishSelector: {
-    width: '80%',
-    marginBottom: 15,
+    width: '100%',
+    marginBottom: 10,
   },
   woodFishSelectorTitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
-    marginBottom: 10,
+    marginBottom: 8,
     textAlign: 'center',
     fontWeight: 'bold',
   },
