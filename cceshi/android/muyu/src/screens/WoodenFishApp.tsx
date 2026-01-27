@@ -217,10 +217,10 @@ const WoodenFishApp: React.FC = () => {
       Vibration.vibrate(30);
     }
 
-    // 真实滚动效果：向上滚动一颗珠子的距离（80px）
+    // 真实滚动效果：向上滚动一颗珠子的距离（96px）
     Animated.sequence([
       Animated.timing(rosaryScrollAnim, {
-        toValue: -80,
+        toValue: -96,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -594,8 +594,8 @@ const WoodenFishApp: React.FC = () => {
               const isCurrentBead = bead.distance === 0;
               const distance = Math.abs(bead.distance);
               
-              // 根据距离设置珠子样式
-              let beadSize = 50 - distance * 15;
+              // 根据距离设置珠子样式（增大20%）
+              let beadSize = (50 - distance * 15) * 1.2;
               let beadOpacity = 1 - distance * 0.25;
               let beadColor = isCurrentBead ? '#D4AF37' : '#C0C0C0';
               let borderWidth = isCurrentBead ? 3 : 1;
@@ -605,7 +605,7 @@ const WoodenFishApp: React.FC = () => {
                   key={`${bead.index}-${index}`}
                   style={[
                     styles.rosaryBeadWrapper,
-                    { height: 80 },
+                    { height: 96 },
                   ]}>
                   <View
                     style={[
@@ -1242,7 +1242,7 @@ const styles = StyleSheet.create({
   },
   rosaryContainer: {
     flex: 1,
-    backgroundColor: '#faf5e6',
+    backgroundColor: '#f5f5f5',
   },
   rosaryHeader: {
     flexDirection: 'row',
@@ -1251,7 +1251,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 45,
     paddingBottom: 20,
-    backgroundColor: '#faf5e6',
+    backgroundColor: '#f5f5f5',
   },
   rosaryCountText: {
     fontSize: 24,
