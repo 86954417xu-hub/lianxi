@@ -230,10 +230,9 @@ const WoodenFishApp: React.FC = () => {
         const relativeDistance = currentDistance - lastScrollY.current;
 
         if (relativeDistance >= threshold) {
-          const nextBead = (currentBead + scrollDirection + 108) % 108;
-          setCurrentBead(nextBead);
+          setCurrentBead(prevBead => (prevBead + scrollDirection + 108) % 108);
 
-          // 仅震动反馈，无位移动画
+          // 仅震动反馈
           if (soundEnabled) {
             Vibration.vibrate(50);
           }
@@ -247,9 +246,11 @@ const WoodenFishApp: React.FC = () => {
       onPanResponderRelease: () => {
         // 只有滚动过才增加计数
         if (hasScrolled.current) {
-          const newCount = rosaryCount + 1;
-          setRosaryCount(newCount);
-          saveRosaryCount(newCount, currentBead);
+          setRosaryCount(prevCount => {
+            const newCount = prevCount + 1;
+            saveRosaryCount(newCount, currentBead);
+            return newCount;
+          });
 
           // 松手时的确认震动反馈
           if (soundEnabled) {
@@ -593,13 +594,15 @@ const WoodenFishApp: React.FC = () => {
   );
 
   const renderRosaryScreen = () => {
-    // 始终显示固定的5颗珠子（位置固定，只改变显示内容）
+    // 显示7颗珠子（位置固定，内容轮转）
     const visibleBeads = [
-      { index: (currentBead - 2 + 108) % 108, distance: -2 },
-      { index: (currentBead - 1 + 108) % 108, distance: -1 },
+      { index: (currentBead - 3 + 108) % 108, distance: 3 },
+      { index: (currentBead - 2 + 108) % 108, distance: 2 },
+      { index: (currentBead - 1 + 108) % 108, distance: 1 },
       { index: currentBead, distance: 0 },
       { index: (currentBead + 1) % 108, distance: 1 },
       { index: (currentBead + 2) % 108, distance: 2 },
+      { index: (currentBead + 3) % 108, distance: 3 },
     ];
 
       return (
@@ -617,19 +620,16 @@ const WoodenFishApp: React.FC = () => {
               const distance = Math.abs(bead.distance);
 
               // 根据距离设置珠子样式和缩放
-              const baseSize = 70; // 基础大小70px
-              const scaleFactor = isCurrentBead ? 1.4 : 1.0 - distance * 0.2;
-              const beadSize = baseSize * scaleFactor;
-              const beadOpacity = isCurrentBead ? 1.0 : 1.0 - distance * 0.2;
-              const borderWidth = isCurrentBead ? 3 : 1;
+              const baseSize = 100; // 标准大小100px
+              const scalePercentages = [1.0, 0.9, 0.85, 0.8];
+              const baseScale = scalePercentages[Math.min(distance, 3)];
+              const beadSize = baseSize * baseScale;
+              const beadOpacity = isCurrentBead ? 1.0 : scalePercentages[Math.min(distance, 3)];
 
               return (
                 <View
                   key={`${bead.index}-${index}`}
-                  style={[
-                    styles.rosaryBeadWrapper,
-                    { height: 112 },
-                  ]}>
+                  style={styles.rosaryBeadWrapper}>
                   <Image
                     source={require('../../assets/rosary_bead.png')}
                     style={[
@@ -638,8 +638,6 @@ const WoodenFishApp: React.FC = () => {
                         width: beadSize,
                         height: beadSize,
                         opacity: beadOpacity,
-                        borderWidth: borderWidth,
-                        borderColor: isCurrentBead ? '#FFD700' : '#888',
                       },
                     ]}
                     resizeMode="contain"
@@ -1000,8 +998,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingTop: 8,
+    paddingBottom: 15,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: -2},
@@ -1011,7 +1009,7 @@ const styles = StyleSheet.create({
   navButton: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   navButtonActive: {
     opacity: 1,
@@ -1269,8 +1267,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 45,
-    paddingBottom: 20,
+    paddingTop: 15,
+    paddingBottom: 3,
     backgroundColor: '#f5f5f5',
   },
   rosaryCountText: {
@@ -1296,9 +1294,10 @@ const styles = StyleSheet.create({
   },
   rosaryBeadsContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingVertical: 0,
   },
   rosaryBeadWrapper: {
     justifyContent: 'center',
