@@ -303,7 +303,7 @@ const WoodenFishApp: React.FC = () => {
 
           // 确认震动
           if (soundEnabled) {
-            Vibration.vibrate(150);
+            Vibration.vibrate(200);
           }
         }
 
@@ -685,7 +685,7 @@ const WoodenFishApp: React.FC = () => {
 
       return (
         <View style={styles.rosaryContainer} {...rosaryPanResponder.panHandlers}>
-          <View style={styles.rosaryHeader} pointerEvents="box-none">
+          <View style={styles.rosaryHeader} pointerEvents="box-none" collapsable={false}>
             <Text style={styles.rosaryCountText}>累积功德 {rosaryCount}</Text>
             <TouchableOpacity onPress={resetRosaryCount} activeOpacity={0.7} style={styles.resetRosaryButton}>
               <Text style={styles.resetRosaryIcon}>↻</Text>
@@ -707,7 +707,9 @@ const WoodenFishApp: React.FC = () => {
             style={{
               transform: [{ translateY: scrollOffsetAnim }],
               marginTop: -810, // 限制顶部珠子在"已祈福"文字下方0px
-              minHeight: 3000, // 确保滚动区域足够大，不会出现空白
+              minHeight: 5000, // 确保滚动区域足够大，不会出现空白
+              paddingTop: 2000, // 填充顶部空白
+              paddingBottom: 2000, // 填充底部空白
               backgroundColor: '#f5f5f5', // 背景色与容器一致
             }}
             pointerEvents="none">
@@ -1049,8 +1051,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 45,
-    paddingBottom: 20,
+    paddingTop: 15,
+    paddingBottom: 3,
   },
   countContainer: {
     flexDirection: 'row',
@@ -1386,11 +1388,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 15,
     paddingBottom: 3,
+    backgroundColor: '#f5f5f5',
+    zIndex: 10, // 使用zIndex创建蒙层，避免elevation导致的视觉差异
   },
   rosaryCountText: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#8B4513',
+    color: '#000000',
   },
   resetRosaryButton: {
     padding: 0,
