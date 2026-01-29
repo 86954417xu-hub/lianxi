@@ -29,6 +29,7 @@ interface FloatingText {
   top: string;
   opacity: Animated.Value;
   translateY: Animated.Value;
+  translateX: Animated.Value;
 }
 
 const WoodenFishApp: React.FC = () => {
@@ -51,12 +52,61 @@ const WoodenFishApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'rosary' | 'profile'>('home');
   const [rosaryCount, setRosaryCount] = useState<number>(0);
   const [currentBead, setCurrentBead] = useState<number>(0);
-  const lastScrollY = useRef<number>(0);
+  const [, forceUpdate] = useState({});
   const hasScrolled = useRef<boolean>(false);
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const textIdCounter = useRef<number>(0);
+
+  // 为念珠页面创建漂浮文字
+  const addRosaryFloatingText = () => {
+    const id = textIdCounter.current++;
+    const opacity = new Animated.Value(1);
+    const translateY = new Animated.Value(0);
+    const translateX = new Animated.Value(0);
+
+    const newText: FloatingText = {
+      id,
+      text: '功德+1',
+      left: '15%', // 左侧位置
+      top: '40%', // 垂直居中附近
+      opacity,
+      translateY,
+      translateX,
+    };
+
+    setFloatingTexts(prev => [...prev, newText]);
+
+    // 向上漂浮并向右移动的动画
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: -150,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateX, {
+        toValue: 50,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setFloatingTexts(prev => prev.filter(item => item.id !== id));
+    });
+  };
+
+  const currentScrollPosition = useRef<number>(0); // 当前滚动位置（累积）
+  const totalScrollPosition = useRef<number>(0); // 总滚动位置（不被重置）
+  const initialBead = useRef<number>(0); // 初始珠子位置（固定）
+  const lastGestureDy = useRef<number>(0); // 上一次手势dy，用于计算增量
+  const scrollOffsetAnim = useRef(new Animated.Value(0)).current; // 滚动偏移量（用于动画）
+  const initialScrollY = useRef<number>(0); // 手势开始时的初始滚动位置
+  const maxScrollUp = 810; // 最大向上滚动距离（不超过累计功德区域）
 
   useEffect(() => {
     loadCount();
@@ -188,11 +238,16 @@ const WoodenFishApp: React.FC = () => {
     try {
       const savedRosaryCount = await AsyncStorage.getItem('rosaryCount');
       const savedCurrentBead = await AsyncStorage.getItem('currentBead');
+      const savedScrollPosition = await AsyncStorage.getItem('scrollPosition');
       if (savedRosaryCount) {
         setRosaryCount(parseInt(savedRosaryCount, 10));
       }
       if (savedCurrentBead) {
         setCurrentBead(parseInt(savedCurrentBead, 10));
+        initialBead.current = parseInt(savedCurrentBead, 10);
+      }
+      if (savedScrollPosition) {
+        totalScrollPosition.current = parseInt(savedScrollPosition, 10);
       }
     } catch (error) {
       console.error('Failed to load rosary count:', error);
@@ -203,6 +258,7 @@ const WoodenFishApp: React.FC = () => {
     try {
       await AsyncStorage.setItem('rosaryCount', newCount.toString());
       await AsyncStorage.setItem('currentBead', newBead.toString());
+      await AsyncStorage.setItem('scrollPosition', totalScrollPosition.current.toString());
     } catch (error) {
       console.error('Failed to save rosary count:', error);
     }
@@ -210,56 +266,49 @@ const WoodenFishApp: React.FC = () => {
 
   const rosaryPanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // 只有垂直滑动超过阈值才捕获手势
-        return Math.abs(gestureState.dy) > 10;
-      },
+      onStartShouldSetPanResponder: () => true, // 立即捕获手势
+      onMoveShouldSetPanResponder: () => true, // 移动时也捕获
       onPanResponderGrant: () => {
-        // 手势开始，记录起始位置和是否滚动过
-        lastScrollY.current = 0;
+        // 手势开始，记录起始位置
+        lastGestureDy.current = 0;
+        initialScrollY.current = totalScrollPosition.current;
         hasScrolled.current = false;
       },
       onPanResponderMove: (_, gestureState) => {
-        // 处理滑动手势
-        const threshold = 100; // 滑动阈值，超过这个距离就滚动一颗珠子
-        const scrollDirection = gestureState.dy < 0 ? 1 : -1; // 向上滑动为1，向下滑动为-1
-        const currentDistance = Math.abs(gestureState.dy);
+        const beadHeight = 60; // 每颗珠子高度（150px珠子-90px间距）
 
-        // 计算从上次滚动后的相对距离
-        const relativeDistance = currentDistance - lastScrollY.current;
+        // 计算手势增量
+        const deltaDy = gestureState.dy - lastGestureDy.current;
+        lastGestureDy.current = gestureState.dy;
 
-        if (relativeDistance >= threshold) {
-          setCurrentBead(prevBead => (prevBead + scrollDirection + 108) % 108);
+        // 更新总滚动位置（累积所有滑动）
+        totalScrollPosition.current += deltaDy;
 
-          // 仅震动反馈
-          if (soundEnabled) {
-            Vibration.vibrate(50);
-          }
+        hasScrolled.current = true;
 
-          // 更新上次滚动位置
-          lastScrollY.current = currentDistance;
-          // 标记已滚动
-          hasScrolled.current = true;
-        }
+        // 更新动画偏移量（基于手势移动）
+        scrollOffsetAnim.setValue(totalScrollPosition.current - initialScrollY.current);
       },
       onPanResponderRelease: () => {
-        // 只有滚动过才增加计数
         if (hasScrolled.current) {
+          // 增加祈福计数（每次滑动结束只增加1次）
           setRosaryCount(prevCount => {
             const newCount = prevCount + 1;
             saveRosaryCount(newCount, currentBead);
             return newCount;
           });
 
-          // 松手时的确认震动反馈
+          // 添加漂浮文案
+          addRosaryFloatingText();
+
+          // 确认震动
           if (soundEnabled) {
-            Vibration.vibrate(100);
+            Vibration.vibrate(150);
           }
         }
 
-        // 重置记录
-        lastScrollY.current = 0;
+        // 重置初始滚动位置，准备下一次手势
+        initialScrollY.current = totalScrollPosition.current;
         hasScrolled.current = false;
       },
     })
@@ -352,7 +401,7 @@ const WoodenFishApp: React.FC = () => {
     if (soundEnabled) {
       try {
         // 直接调用震动,确保荣耀手机震动生效
-        Vibration.vibrate(50);
+        Vibration.vibrate(150);
         soundManager.playWoodFishSound();
       } catch (error) {
         console.log('Sound error:', error);
@@ -407,13 +456,14 @@ const WoodenFishApp: React.FC = () => {
     const opacity = new Animated.Value(1);
     const translateY = new Animated.Value(0);
 
-    const newText: FloatingText = {
+    const newText: any = { // 使用 any 类型以包含 translateX
       id,
       text: floatingText,
       left: '50%', // 固定水平居中
       top: '35%', // 固定垂直位置
       opacity,
       translateY,
+      translateX: new Animated.Value(0), // 添加 translateX
     };
 
     setFloatingTexts(prev => [...prev, newText]);
@@ -594,58 +644,127 @@ const WoodenFishApp: React.FC = () => {
   );
 
   const renderRosaryScreen = () => {
-    // 显示7颗珠子（位置固定，内容轮转）
-    const visibleBeads = [
-      { index: (currentBead - 3 + 108) % 108, distance: 3 },
-      { index: (currentBead - 2 + 108) % 108, distance: 2 },
-      { index: (currentBead - 1 + 108) % 108, distance: 1 },
-      { index: currentBead, distance: 0 },
-      { index: (currentBead + 1) % 108, distance: 1 },
-      { index: (currentBead + 2) % 108, distance: 2 },
-      { index: (currentBead + 3) % 108, distance: 3 },
-    ];
+    // 渲染30颗珠子，实现滚动动画
+    const beadHeight = 150; // 珠子大小（固定）
+    const beadSpacing = -90; // 珠子间距（负值，利用图片边框）
+    const totalBeadHeight = beadHeight + beadSpacing; // 60
+
+    // 获取总滚动位置（不被重置）
+    const totalScrollPos = totalScrollPosition.current;
+
+    // 计算滚动导致的珠子索引偏移
+    const beadOffset = Math.floor(totalScrollPos / totalBeadHeight);
+
+    // 计算中心珠子的索引（使用初始珠子位置）
+    const centerBead = (initialBead.current - beadOffset + 108 * 100) % 108;
+
+    // 计算当前应该显示的30颗珠子，确保滑动时有足够的珠子可见
+    // 中心位置是14（第15颗），所以范围是 0-29
+    const visibleBeads = Array.from({ length: 30 }, (_, i) => {
+      // 计算这颗珠子在108颗中的实际索引
+      const offset = i - 14; // -14, -13, ..., 0, ..., 14, 15
+      const beadIndex = (centerBead + offset + 108) % 108;
+      const distance = Math.abs(offset);
+
+      // 珠子大小固定，不缩放
+      const beadSize = beadHeight;
+      const beadOpacity = Math.max(0.2, 1.0 - distance * 0.05);
+
+      // 珠子的基准位置（固定）
+      const basePosition = i * totalBeadHeight;
+
+      return {
+        index: beadIndex,
+        distance,
+        beadSize,
+        beadOpacity,
+        basePosition,
+        offset,
+      };
+    });
 
       return (
-        <View style={styles.rosaryContainer}>
-          <View style={styles.rosaryHeader}>
-            <Text style={styles.rosaryCountText}>已祈福 {rosaryCount} 次</Text>
+        <View style={styles.rosaryContainer} {...rosaryPanResponder.panHandlers}>
+          <View style={styles.rosaryHeader} pointerEvents="box-none">
+            <Text style={styles.rosaryCountText}>累积功德 {rosaryCount}</Text>
             <TouchableOpacity onPress={resetRosaryCount} activeOpacity={0.7} style={styles.resetRosaryButton}>
               <Text style={styles.resetRosaryIcon}>↻</Text>
             </TouchableOpacity>
           </View>
 
-        <View style={styles.rosaryBeadsContainer}>
-            {visibleBeads.map((bead, index) => {
-              const isCurrentBead = bead.distance === 0;
-              const distance = Math.abs(bead.distance);
 
-              // 根据距离设置珠子样式和缩放
-              const baseSize = 100; // 标准大小100px
-              const scalePercentages = [1.0, 0.9, 0.85, 0.8];
-              const baseScale = scalePercentages[Math.min(distance, 3)];
-              const beadSize = baseSize * baseScale;
-              const beadOpacity = isCurrentBead ? 1.0 : scalePercentages[Math.min(distance, 3)];
 
-              return (
-                <View
-                  key={`${bead.index}-${index}`}
-                  style={styles.rosaryBeadWrapper}>
-                  <Image
-                    source={require('../../assets/rosary_bead.png')}
-                    style={[
-                      styles.rosaryBeadImage,
-                      {
-                        width: beadSize,
-                        height: beadSize,
-                        opacity: beadOpacity,
-                      },
-                    ]}
-                    resizeMode="contain"
-                  />
-                </View>
-              );
-            })}
+
+
+
+
+
+
+
+
+        <View style={styles.rosaryBeadsContainer} pointerEvents="box-none">
+          <Animated.View
+            style={{
+              transform: [{ translateY: scrollOffsetAnim }],
+              marginTop: -810, // 限制顶部珠子在"已祈福"文字下方0px
+              minHeight: 3000, // 确保滚动区域足够大，不会出现空白
+              backgroundColor: '#f5f5f5', // 背景色与容器一致
+            }}
+            pointerEvents="none">
+            {visibleBeads.map((bead) => (
+              <View
+                key={`${bead.index}-${bead.offset}`}
+                style={[
+                  styles.rosaryBeadWrapper,
+                  {
+                    position: 'absolute',
+                    top: bead.basePosition,
+                    left: 0,
+                    right: 0,
+                    height: beadHeight,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: bead.beadOpacity,
+                  },
+                ]}>
+                <Image
+                  source={require('../../assets/rosary_bead.png')}
+                  style={[
+                    styles.rosaryBeadImage,
+                    {
+                      width: bead.beadSize,
+                      height: bead.beadSize,
+                    },
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            ))}
+          </Animated.View>
         </View>
+
+        {floatingTexts.map(item => (
+          <Animated.View
+            key={item.id}
+            style={[
+              styles.floatingText,
+              {
+                left: item.left,
+                top: item.top,
+                opacity: item.opacity,
+                transform: [
+                  { translateY: item.translateY },
+                  { translateX: item.translateX },
+                ],
+              },
+            ] as any}>
+            <Text style={styles.floatingTextContent}>{item.text}</Text>
+          </Animated.View>
+        ))}
+
+
+
+
 
 
 
@@ -655,7 +774,7 @@ const WoodenFishApp: React.FC = () => {
 
         <View
           style={styles.rosaryTapArea}
-          {...rosaryPanResponder.panHandlers}
+          pointerEvents="none"
         />
       </View>
     );
@@ -930,8 +1049,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingLeft: 20,
-    paddingRight: 10,
     paddingTop: 45,
     paddingBottom: 20,
   },
@@ -1269,7 +1386,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 15,
     paddingBottom: 3,
-    backgroundColor: '#f5f5f5',
   },
   rosaryCountText: {
     fontSize: 24,
@@ -1294,10 +1410,11 @@ const styles = StyleSheet.create({
   },
   rosaryBeadsContainer: {
     flex: 1,
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 0,
+    position: 'relative',
+    width: '100%',
+    backgroundColor: '#f5f5f5',
   },
   rosaryBeadWrapper: {
     justifyContent: 'center',
@@ -1314,9 +1431,10 @@ const styles = StyleSheet.create({
   rosaryTapArea: {
     position: 'absolute',
     width: '100%',
-    height: '70%',
-    top: '15%',
+    height: '85%',
+    top: '10%',
     left: 0,
+    zIndex: 1000,
   },
 });
 
