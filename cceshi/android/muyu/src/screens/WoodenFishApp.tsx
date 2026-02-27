@@ -14,9 +14,11 @@ import {
   PanResponder,
   Image,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import DocumentPicker, {types} from 'react-native-document-picker';
 import WoodFish from '../components/WoodFish';
+import GradientBead from '../components/GradientBead';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {saveImage, getSavedImagePath, clearImageCache, saveWoodFishType, getWoodFishType} from '../utils/ImageStorage';
 import {saveAudio, getSavedAudioPath, clearAudioCache} from '../utils/AudioStorage';
@@ -54,6 +56,10 @@ const WoodenFishApp: React.FC = () => {
   const [currentBead, setCurrentBead] = useState<number>(0);
   const [, forceUpdate] = useState({});
   const hasScrolled = useRef<boolean>(false);
+  const [userName, setUserName] = useState<string>('静心行者');
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [showEditProfile, setShowEditProfile] = useState<boolean>(false);
+  const [tempUserName, setTempUserName] = useState<string>('');
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -118,6 +124,7 @@ const WoodenFishApp: React.FC = () => {
     loadCustomSound();
     loadWoodFishType();
     loadRosaryCount();
+    loadUserInfo();
   }, []);
 
   useEffect(() => {
@@ -254,6 +261,34 @@ const WoodenFishApp: React.FC = () => {
     }
   };
 
+  const loadUserInfo = async () => {
+    try {
+      const savedUserName = await AsyncStorage.getItem('userName');
+      const savedUserAvatar = await AsyncStorage.getItem('userAvatar');
+      if (savedUserName) setUserName(savedUserName);
+      if (savedUserAvatar) setUserAvatar(savedUserAvatar);
+    } catch (error) {
+      console.error('Failed to load user info:', error);
+    }
+  };
+
+  const saveUserName = async (name: string) => {
+    try {
+      await AsyncStorage.setItem('userName', name);
+      setUserName(name);
+    } catch (error) {
+      console.error('Failed to save user name:', error);
+    }
+  };
+
+  const handleAvatarUpload = async () => {
+    const path = await saveImage('userAvatar');
+    if (path) {
+      setUserAvatar(path);
+      await AsyncStorage.setItem('userAvatar', path);
+    }
+  };
+
   const saveRosaryCount = async (newCount: number, newBead: number) => {
     try {
       await AsyncStorage.setItem('rosaryCount', newCount.toString());
@@ -286,8 +321,10 @@ const WoodenFishApp: React.FC = () => {
 
         hasScrolled.current = true;
 
-        // 更新动画偏移量（基于手势移动）
-        scrollOffsetAnim.setValue(totalScrollPosition.current - initialScrollY.current);
+        // 更新动画偏移量：基于手势移动的增量，用于平滑动画
+        // 使用取模确保动画值在合理范围内（-60到60之间）
+        const scrollOffset = totalScrollPosition.current - initialScrollY.current;
+        scrollOffsetAnim.setValue(scrollOffset % 60);
       },
       onPanResponderRelease: () => {
         if (hasScrolled.current) {
@@ -307,8 +344,8 @@ const WoodenFishApp: React.FC = () => {
           }
         }
 
-        // 重置初始滚动位置，准备下一次手势
-        initialScrollY.current = totalScrollPosition.current;
+        // 重置动画值
+        scrollOffsetAnim.setValue(0);
         hasScrolled.current = false;
       },
     })
@@ -644,10 +681,17 @@ const WoodenFishApp: React.FC = () => {
   );
 
   const renderRosaryScreen = () => {
-    // 渲染30颗珠子，实现滚动动画
-    const beadHeight = 150; // 珠子大小（固定）
-    const beadSpacing = -90; // 珠子间距（负值，利用图片边框）
-    const totalBeadHeight = beadHeight + beadSpacing; // 60
+    // 设计稿参数
+    const beadSize = 80; // 珠子大小
+    const beadSpacing = 8; // 珠子间距
+    const totalBeadHeight = beadSize + beadSpacing; // 每颗珠子占用的总高度
+
+    // 获取屏幕高度，动态计算珠子数量
+    const screenHeight = Dimensions.get('window').height;
+    const headerHeight = 100; // 头部高度
+    const bottomNavHeight = 80; // 底部导航高度
+    const visibleHeight = screenHeight - headerHeight - bottomNavHeight;
+    const visibleBeadCount = Math.ceil(visibleHeight / totalBeadHeight) + 5; // 额外加5颗确保不漏
 
     // 获取总滚动位置（不被重置）
     const totalScrollPos = totalScrollPosition.current;
@@ -658,26 +702,26 @@ const WoodenFishApp: React.FC = () => {
     // 计算中心珠子的索引（使用初始珠子位置）
     const centerBead = (initialBead.current - beadOffset + 108 * 100) % 108;
 
-    // 计算当前应该显示的30颗珠子，确保滑动时有足够的珠子可见
-    // 中心位置是14（第15颗），所以范围是 0-29
-    const visibleBeads = Array.from({ length: 30 }, (_, i) => {
-      // 计算这颗珠子在108颗中的实际索引
-      const offset = i - 14; // -14, -13, ..., 0, ..., 14, 15
+    // 动态生成珠子数组
+    const visibleBeads = Array.from({length: visibleBeadCount}, (_, i) => {
+      const offset = i - Math.floor(visibleBeadCount / 2);
       const beadIndex = (centerBead + offset + 108) % 108;
       const distance = Math.abs(offset);
 
-      // 珠子大小固定，不缩放
-      const beadSize = beadHeight;
-      const beadOpacity = Math.max(0.2, 1.0 - distance * 0.05);
+      // 透明度递减效果（最后3颗逐渐变淡）
+      let opacity = 1;
+      if (i >= visibleBeadCount - 3) {
+        opacity = 0.4 + (visibleBeadCount - i - 1) * 0.2;
+      }
 
-      // 珠子的基准位置（固定）
-      const basePosition = i * totalBeadHeight;
+      // 珠子的基准位置：固定位置 + 滚动偏移的余数部分
+      const basePosition = i * totalBeadHeight + (totalScrollPos % totalBeadHeight);
 
       return {
         index: beadIndex,
         distance,
         beadSize,
-        beadOpacity,
+        opacity,
         basePosition,
         offset,
       };
@@ -685,9 +729,16 @@ const WoodenFishApp: React.FC = () => {
 
       return (
         <View style={styles.rosaryContainer} {...rosaryPanResponder.panHandlers}>
-          <View style={styles.rosaryHeader} pointerEvents="box-none" collapsable={false}>
-            <Text style={styles.rosaryCountText}>累积功德 {rosaryCount}</Text>
-            <TouchableOpacity onPress={resetRosaryCount} activeOpacity={0.7} style={styles.resetRosaryButton}>
+          {/* 头部 - 功德计数 */}
+          <View style={styles.rosaryHeader} pointerEvents="box-none">
+            <View style={styles.rosaryTitleContainer}>
+              <Text style={styles.rosaryTitleText}>累积功德</Text>
+              <Text style={styles.rosaryCountNumber}>{rosaryCount}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={resetRosaryCount}
+              activeOpacity={0.7}
+              style={styles.resetRosaryButton}>
               <Text style={styles.resetRosaryIcon}>↻</Text>
             </TouchableOpacity>
           </View>
@@ -702,15 +753,19 @@ const WoodenFishApp: React.FC = () => {
 
 
 
+        {/* 念珠滚动区域 */}
         <View style={styles.rosaryBeadsContainer} pointerEvents="box-none">
+          {/* 红色串线 */}
+          <View style={styles.rosaryString} />
+
+          {/* 珠子容器 */}
           <Animated.View
             style={{
-              transform: [{ translateY: scrollOffsetAnim }],
-              marginTop: -810, // 限制顶部珠子在"已祈福"文字下方0px
-              minHeight: 5000, // 确保滚动区域足够大，不会出现空白
-              paddingTop: 2000, // 填充顶部空白
-              paddingBottom: 2000, // 填充底部空白
-              backgroundColor: '#f5f5f5', // 背景色与容器一致
+              marginTop: 0,
+              minHeight: visibleBeadCount * totalBeadHeight + 1000,
+              paddingTop: 500,
+              paddingBottom: 500,
+              transform: [{translateY: scrollOffsetAnim}],
             }}
             pointerEvents="none">
             {visibleBeads.map((bead) => (
@@ -723,28 +778,22 @@ const WoodenFishApp: React.FC = () => {
                     top: bead.basePosition,
                     left: 0,
                     right: 0,
-                    height: beadHeight,
+                    height: bead.beadSize,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    opacity: bead.beadOpacity,
+                    opacity: bead.opacity,
                   },
                 ]}>
-                <Image
-                  source={require('../../assets/rosary_bead.png')}
-                  style={[
-                    styles.rosaryBeadImage,
-                    {
-                      width: bead.beadSize,
-                      height: bead.beadSize,
-                    },
-                  ]}
-                  resizeMode="contain"
-                />
+                <GradientBead size={bead.beadSize} opacity={bead.opacity} />
               </View>
             ))}
           </Animated.View>
+
+          {/* 底部渐变遮罩 */}
+          <View style={styles.rosaryGradientMask} />
         </View>
 
+        {/* 漂浮文字 */}
         {floatingTexts.map(item => (
           <Animated.View
             key={item.id}
@@ -764,6 +813,11 @@ const WoodenFishApp: React.FC = () => {
           </Animated.View>
         ))}
 
+        {/* 提示文字 */}
+        <View style={styles.rosaryHintContainer} pointerEvents="none">
+          <Text style={styles.rosaryHintText}>轻触念珠计数</Text>
+        </View>
+
 
 
 
@@ -782,27 +836,113 @@ const WoodenFishApp: React.FC = () => {
     );
   };
 
-  const renderProfileScreen = () => (
-    <View style={styles.settingsContainer}>
-      <Text style={styles.profileTitle}>个人中心</Text>
-      <TouchableOpacity style={styles.suggestionButton}>
-        <Text style={styles.suggestionButtonText}>该做什么功能呢</Text>
-        <Text style={styles.suggestionArrow}>›</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.suggestionButton}>
-        <Text style={styles.suggestionButtonText}>隐私政策</Text>
-        <Text style={styles.suggestionArrow}>›</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.suggestionButton}>
-        <Text style={styles.suggestionButtonText}>用户协议</Text>
-        <Text style={styles.suggestionArrow}>›</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.suggestionButton}>
-        <Text style={styles.suggestionButtonText}>意见反馈</Text>
-        <Text style={styles.suggestionArrow}>›</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderProfileScreen = () => {
+    const todayMerit = count + rosaryCount; // 今日功德 = 木鱼敲击 + 念珠计数
+
+    return (
+      <View style={styles.profileContainer}>
+        {/* 头部 */}
+        <View style={styles.profileHeader}>
+          <Text style={styles.profileHeaderText}>个人中心</Text>
+          <TouchableOpacity
+            style={styles.profileSettingsButton}
+            activeOpacity={0.7}
+            onPress={() => setShowSettingsModal(true)}>
+            <Text style={styles.profileSettingsIcon}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 用户卡片 */}
+        <View style={styles.profileCard}>
+          <View style={styles.profileAvatarContainer}>
+            <TouchableOpacity
+              style={styles.profileAvatarWrapper}
+              onPress={handleAvatarUpload}
+              activeOpacity={0.8}>
+              {userAvatar ? (
+                <Image source={{uri: userAvatar}} style={styles.profileAvatar} />
+              ) : (
+                <View style={styles.profileAvatarPlaceholder}>
+                  <Text style={styles.profileAvatarText}>👤</Text>
+                </View>
+              )}
+              <View style={styles.profileAvatarEdit}>
+                <Text style={styles.profileAvatarEditIcon}>✏️</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={styles.profileInfo}
+            activeOpacity={0.7}
+            onPress={() => {
+              setTempUserName(userName);
+              setShowEditProfile(true);
+            }}>
+            <Text style={styles.profileName}>{userName}</Text>
+            <Text style={styles.profileMerit}>今日功德: {todayMerit}</Text>
+          </TouchableOpacity>
+          <Text style={styles.profileArrow}>›</Text>
+        </View>
+
+        {/* 功能列表 */}
+        <View style={styles.profileMenuContainer}>
+          <TouchableOpacity style={styles.profileMenuItem} activeOpacity={0.7}>
+            <View style={[styles.profileMenuIcon, {backgroundColor: '#E3F2FD'}]}>
+              <Text style={styles.profileMenuIconText}>💡</Text>
+            </View>
+            <Text style={styles.profileMenuText}>该做什么功能呢</Text>
+            <Text style={styles.profileMenuArrow}>›</Text>
+          </TouchableOpacity>
+
+          <View style={styles.profileMenuDivider} />
+
+          <TouchableOpacity style={styles.profileMenuItem} activeOpacity={0.7}>
+            <View style={[styles.profileMenuIcon, {backgroundColor: '#F3E5F5'}]}>
+              <Text style={styles.profileMenuIconText}>🔒</Text>
+            </View>
+            <Text style={styles.profileMenuText}>隐私政策</Text>
+            <Text style={styles.profileMenuArrow}>›</Text>
+          </TouchableOpacity>
+
+          <View style={styles.profileMenuDivider} />
+
+          <TouchableOpacity style={styles.profileMenuItem} activeOpacity={0.7}>
+            <View style={[styles.profileMenuIcon, {backgroundColor: '#FFF3E0'}]}>
+              <Text style={styles.profileMenuIconText}>📄</Text>
+            </View>
+            <Text style={styles.profileMenuText}>用户协议</Text>
+            <Text style={styles.profileMenuArrow}>›</Text>
+          </TouchableOpacity>
+
+          <View style={styles.profileMenuDivider} />
+
+          <TouchableOpacity style={styles.profileMenuItem} activeOpacity={0.7}>
+            <View style={[styles.profileMenuIcon, {backgroundColor: '#E0F2F1'}]}>
+              <Text style={styles.profileMenuIconText}>💬</Text>
+            </View>
+            <Text style={styles.profileMenuText}>意见反馈</Text>
+            <Text style={styles.profileMenuArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 每日禅语卡片 */}
+        <View style={styles.profileZenCard}>
+          <View style={styles.profileZenContent}>
+            <Text style={styles.profileZenTitle}>每日禅语</Text>
+            <Text style={styles.profileZenText}>
+              "万物静观皆自得，四时佳兴与人同。"
+            </Text>
+          </View>
+          <Text style={styles.profileZenIcon}>🌿</Text>
+        </View>
+
+        {/* 版本信息 */}
+        <View style={styles.profileVersion}>
+          <Text style={styles.profileVersionText}>版本 1.0.2</Text>
+        </View>
+      </View>
+    );
+  };
 
 
 
@@ -813,22 +953,37 @@ const WoodenFishApp: React.FC = () => {
 
       <View style={styles.bottomNav}>
         <TouchableOpacity
-          style={[styles.navButton, activeTab === 'home' && styles.navButtonActive]}
+          style={styles.navButton}
           activeOpacity={0.7}
           onPress={() => setActiveTab('home')}>
-          <Text style={[styles.navButtonText, activeTab === 'home' && styles.navButtonTextActive]}>木鱼</Text>
+          <Text style={[styles.navButtonIcon, activeTab === 'home' && styles.navButtonIconActive]}>
+            🎵
+          </Text>
+          <Text style={[styles.navButtonText, activeTab === 'home' && styles.navButtonTextActive]}>
+            木鱼
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.navButton, activeTab === 'rosary' && styles.navButtonActive]}
+          style={styles.navButton}
           activeOpacity={0.7}
           onPress={() => setActiveTab('rosary')}>
-          <Text style={[styles.navButtonText, activeTab === 'rosary' && styles.navButtonTextActive]}>念珠</Text>
+          <Text style={[styles.navButtonIcon, activeTab === 'rosary' && styles.navButtonIconActive]}>
+            ⭕
+          </Text>
+          <Text style={[styles.navButtonText, activeTab === 'rosary' && styles.navButtonTextActive]}>
+            念珠
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.navButton, activeTab === 'profile' && styles.navButtonActive]}
+          style={styles.navButton}
           activeOpacity={0.7}
           onPress={() => setActiveTab('profile')}>
-          <Text style={[styles.navButtonText, activeTab === 'profile' && styles.navButtonTextActive]}>我的</Text>
+          <Text style={[styles.navButtonIcon, activeTab === 'profile' && styles.navButtonIconActive]}>
+            👤
+          </Text>
+          <Text style={[styles.navButtonText, activeTab === 'profile' && styles.navButtonTextActive]}>
+            我的
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -1030,6 +1185,48 @@ const WoodenFishApp: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={showEditProfile}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditProfile(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>修改用户名</Text>
+            <View style={styles.textInputContainer}>
+              <TextInput
+                style={styles.textInput}
+                value={tempUserName || ''}
+                onChangeText={setTempUserName}
+                placeholder="请输入用户名"
+                placeholderTextColor="#999"
+                autoFocus={true}
+                multiline={false}
+                maxLength={20}
+              />
+            </View>
+            <Text style={styles.hintText}>当前: {tempUserName} ({tempUserName.length}/20)</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowEditProfile(false)}>
+                <Text style={styles.modalButtonText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={() => {
+                  if (tempUserName.trim()) {
+                    saveUserName(tempUserName.trim());
+                    setShowEditProfile(false);
+                  }
+                }}>
+                <Text style={styles.modalButtonText}>保存</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1114,37 +1311,34 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingTop: 8,
-    paddingBottom: 15,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: -2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 10,
+    paddingBottom: 25,
+    paddingHorizontal: 10,
   },
   navButton: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 6,
+    justifyContent: 'center',
+    paddingVertical: 4,
   },
-  navButtonActive: {
-    opacity: 1,
+  navButtonIcon: {
+    fontSize: 24,
+    marginBottom: 2,
+  },
+  navButtonIconActive: {
+    // 激活状态的颜色
   },
   navButtonText: {
-    fontSize: 16,
-    color: '#999',
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#9CA3AF',
   },
   navButtonTextActive: {
-    color: '#4CAF50',
+    color: '#6B8E6B',
     fontWeight: 'bold',
-  },
-  profileHeader: {
-    alignItems: 'center',
-    paddingTop: 40,
-    paddingBottom: 30,
   },
   menuContainer: {
     marginTop: 20,
@@ -1174,29 +1368,190 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 40,
   },
-  profileTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 40,
-  },
-  suggestionButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  // 新增个人中心样式
+  profileContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAF9',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    width: '100%',
   },
-  suggestionButtonText: {
-    color: '#333',
+  profileHeader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 15,
+    paddingBottom: 20,
+    position: 'relative',
+  },
+  profileHeaderText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  profileSettingsButton: {
+    position: 'absolute',
+    right: 0,
+    top: 15,
+    padding: 8,
+    borderRadius: 20,
+  },
+  profileSettingsIcon: {
+    fontSize: 20,
+  },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  profileAvatarContainer: {
+    marginRight: 16,
+  },
+  profileAvatarWrapper: {
+    position: 'relative',
+    width: 64,
+    height: 64,
+  },
+  profileAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#E8F5E9',
+  },
+  profileAvatarPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileAvatarText: {
+    fontSize: 30,
+  },
+  profileAvatarEdit: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#6B8E6B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  profileAvatarEditIcon: {
+    fontSize: 10,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
     fontSize: 18,
-    textAlign: 'left',
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
   },
-  suggestionArrow: {
-    color: '#999',
+  profileMerit: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  profileArrow: {
     fontSize: 24,
+    color: '#9CA3AF',
     fontWeight: '300',
+  },
+  profileMenuContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 20,
+  },
+  profileMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  profileMenuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  profileMenuIconText: {
+    fontSize: 20,
+  },
+  profileMenuText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1F2937',
+  },
+  profileMenuArrow: {
+    fontSize: 20,
+    color: '#9CA3AF',
+    fontWeight: '300',
+  },
+  profileMenuDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginLeft: 72,
+  },
+  profileZenCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(107, 142, 107, 0.1)',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(107, 142, 107, 0.2)',
+    marginBottom: 20,
+  },
+  profileZenContent: {
+    flex: 1,
+  },
+  profileZenTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#6B8E6B',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  profileZenText: {
+    fontSize: 14,
+    color: '#374151',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  profileZenIcon: {
+    fontSize: 32,
+    marginLeft: 16,
+    opacity: 0.6,
+  },
+  profileVersion: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  profileVersionText: {
+    fontSize: 12,
+    color: '#9CA3AF',
   },
   settingsModalContent: {
     width: '90%',
@@ -1379,17 +1734,17 @@ const styles = StyleSheet.create({
   },
   rosaryContainer: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F9F9F9',
   },
   rosaryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 3,
-    backgroundColor: '#f5f5f5',
-    zIndex: 10, // 使用zIndex创建蒙层，避免elevation导致的视觉差异
+    paddingHorizontal: 32,
+    paddingTop: 56,
+    paddingBottom: 16,
+    backgroundColor: '#F9F9F9',
+    zIndex: 10,
   },
   rosaryCountText: {
     fontSize: 24,
@@ -1431,6 +1786,51 @@ const styles = StyleSheet.create({
   rosaryBeadImage: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // 念珠页面新样式
+  rosaryTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  rosaryTitleText: {
+    fontSize: 20,
+    fontWeight: '500',
+    color: '#2C2C2C',
+    marginRight: 12,
+  },
+  rosaryCountNumber: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#8DA399',
+  },
+  rosaryString: {
+    position: 'absolute',
+    left: '50%',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: 'rgba(127, 29, 29, 0.4)',
+    transform: [{translateX: -1}],
+    zIndex: -1,
+  },
+  rosaryGradientMask: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '15%',
+    backgroundColor: 'transparent',
+  },
+  rosaryHintContainer: {
+    position: 'absolute',
+    bottom: 128,
+    right: 32,
+    opacity: 0.6,
+  },
+  rosaryHintText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    letterSpacing: 2,
   },
   rosaryTapArea: {
     position: 'absolute',
