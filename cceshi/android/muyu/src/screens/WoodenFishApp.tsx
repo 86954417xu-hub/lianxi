@@ -20,6 +20,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import DocumentPicker, {types} from 'react-native-document-picker';
 import WoodFish from '../components/WoodFish';
 import GradientBead from '../components/GradientBead';
+import Match3Game from './Match3Game';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {saveImage, getSavedImagePath, clearImageCache, saveWoodFishType, getWoodFishType} from '../utils/ImageStorage';
 import {saveAudio, getSavedAudioPath, clearAudioCache} from '../utils/AudioStorage';
@@ -61,6 +62,7 @@ const WoodenFishApp: React.FC = () => {
   const [userName, setUserName] = useState<string>('静心行者');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [showEditProfile, setShowEditProfile] = useState<boolean>(false);
+  const [showMatch3Game, setShowMatch3Game] = useState<boolean>(false);
   const [tempUserName, setTempUserName] = useState<string>('');
 
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -985,13 +987,19 @@ const WoodenFishApp: React.FC = () => {
         <View style={styles.gamesGrid}>
           {games.map((game, index) => (
             <View key={game.id} style={styles.gameCardWrapper}>
-              <View
+              <TouchableOpacity
                 style={[
                   styles.gameCard,
                   {
                     shadowColor: game.shadowColor,
                   },
-                ]}>
+                ]}
+                activeOpacity={0.9}
+                onPress={() => {
+                  if (game.id === 'match3') {
+                    setShowMatch3Game(true);
+                  }
+                }}>
                 <View
                   style={[
                     styles.gameCardGradient,
@@ -1009,7 +1017,7 @@ const WoodenFishApp: React.FC = () => {
                     </Text>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
               <Text style={styles.gameCardName}>{game.name}</Text>
             </View>
           ))}
@@ -1313,6 +1321,11 @@ const WoodenFishApp: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* 消消乐游戏 */}
+      {showMatch3Game && (
+        <Match3Game onBack={() => setShowMatch3Game(false)} />
+      )}
     </SafeAreaView>
   );
 };
