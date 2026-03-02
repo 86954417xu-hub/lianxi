@@ -53,7 +53,7 @@ const WoodenFishApp: React.FC = () => {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [customSoundPath, setCustomSoundPath] = useState<string | null>(null);
   const [selectedWoodFishType, setSelectedWoodFishType] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState<'home' | 'rosary' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'rosary' | 'games' | 'profile'>('home');
   const [rosaryCount, setRosaryCount] = useState<number>(0);
   const [currentBead, setCurrentBead] = useState<number>(0);
   const [, forceUpdate] = useState({});
@@ -321,7 +321,10 @@ const WoodenFishApp: React.FC = () => {
         // 更新总滚动位置（累积所有滑动）
         totalScrollPosition.current += deltaDy;
 
-        hasScrolled.current = true;
+        // 只有滑动距离超过阈值才标记为有效滑动
+        if (Math.abs(gestureState.dy) > 10) {
+          hasScrolled.current = true;
+        }
 
         // 更新动画偏移量：基于手势移动的增量，用于平滑动画
         // 使用取模确保动画值在合理范围内（-60到60之间）
@@ -940,12 +943,88 @@ const WoodenFishApp: React.FC = () => {
     );
   };
 
+  const renderGamesScreen = () => {
+    const games = [
+      {
+        id: 'match3',
+        name: '消消乐',
+        gradient: ['#F472B6', '#A855F7'], // pink-400 to purple-500
+        shadowColor: 'rgba(244, 114, 182, 0.5)',
+      },
+      {
+        id: '2048',
+        name: '2048',
+        gradient: ['#FB923C', '#EAB308'], // orange-400 to yellow-500
+        shadowColor: 'rgba(251, 146, 60, 0.5)',
+      },
+      {
+        id: 'snake',
+        name: '贪吃蛇',
+        gradient: ['#4ADE80', '#059669'], // green-400 to emerald-600
+        shadowColor: 'rgba(74, 222, 128, 0.5)',
+      },
+      {
+        id: 'pig',
+        name: '别让小猪落地',
+        gradient: ['#7DD3FC', '#3B82F6'], // sky-300 to blue-500
+        shadowColor: 'rgba(125, 211, 252, 0.5)',
+      },
+    ];
+
+    return (
+      <View style={styles.gamesContainer}>
+        {/* 头部 */}
+        <View style={[styles.gamesHeader, {paddingTop: insets.top + 15}]}>
+          <Text style={styles.gamesTitle}>想到什么做什么</Text>
+          <View style={styles.gamesSunIcon}>
+            <Text style={styles.sunIconText}>☀️</Text>
+          </View>
+        </View>
+
+        {/* 游戏卡片网格 */}
+        <View style={styles.gamesGrid}>
+          {games.map((game, index) => (
+            <View key={game.id} style={styles.gameCardWrapper}>
+              <View
+                style={[
+                  styles.gameCard,
+                  {
+                    shadowColor: game.shadowColor,
+                  },
+                ]}>
+                <View
+                  style={[
+                    styles.gameCardGradient,
+                    {
+                      backgroundColor: game.gradient[0],
+                    },
+                  ]}>
+                  {/* 卡片图标区域 */}
+                  <View style={styles.gameCardContent}>
+                    <Text style={styles.gameCardIcon}>
+                      {game.id === 'match3' && '🐾'}
+                      {game.id === '2048' && '🎮'}
+                      {game.id === 'snake' && '🐍'}
+                      {game.id === 'pig' && '🐷'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={styles.gameCardName}>{game.name}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
 
 
   return (
     <SafeAreaView style={styles.container}>
-      {activeTab === 'home' ? renderHomeScreen() : 
-       activeTab === 'rosary' ? renderRosaryScreen() : renderProfileScreen()}
+      {activeTab === 'home' ? renderHomeScreen() :
+       activeTab === 'rosary' ? renderRosaryScreen() :
+       activeTab === 'games' ? renderGamesScreen() : renderProfileScreen()}
 
       <View style={styles.bottomNav}>
         <TouchableOpacity
@@ -953,7 +1032,7 @@ const WoodenFishApp: React.FC = () => {
           activeOpacity={0.7}
           onPress={() => setActiveTab('home')}>
           <Text style={[styles.navButtonIcon, activeTab === 'home' && styles.navButtonIconActive]}>
-            🎵
+            🐟
           </Text>
           <Text style={[styles.navButtonText, activeTab === 'home' && styles.navButtonTextActive]}>
             木鱼
@@ -964,10 +1043,21 @@ const WoodenFishApp: React.FC = () => {
           activeOpacity={0.7}
           onPress={() => setActiveTab('rosary')}>
           <Text style={[styles.navButtonIcon, activeTab === 'rosary' && styles.navButtonIconActive]}>
-            ⭕
+            ⚫
           </Text>
           <Text style={[styles.navButtonText, activeTab === 'rosary' && styles.navButtonTextActive]}>
             念珠
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navButton}
+          activeOpacity={0.7}
+          onPress={() => setActiveTab('games')}>
+          <Text style={[styles.navButtonIcon, activeTab === 'games' && styles.navButtonIconActive]}>
+            🎮
+          </Text>
+          <Text style={[styles.navButtonText, activeTab === 'games' && styles.navButtonTextActive]}>
+            娱乐
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -1307,7 +1397,7 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
     paddingTop: 10,
@@ -1333,8 +1423,86 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   navButtonTextActive: {
-    color: '#6B8E6B',
+    color: '#137fec',
     fontWeight: 'bold',
+  },
+  // 娱乐页面样式
+  gamesContainer: {
+    flex: 1,
+    backgroundColor: '#FCFCFD',
+  },
+  gamesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 3,
+  },
+  gamesTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  gamesSunIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  sunIconText: {
+    fontSize: 20,
+  },
+  gamesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 24,
+    paddingBottom: 100,
+    gap: 24,
+  },
+  gameCardWrapper: {
+    width: '45%',
+    alignItems: 'center',
+  },
+  gameCard: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 24,
+    shadowOffset: {width: 0, height: 10},
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    overflow: 'hidden',
+  },
+  gameCardGradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  gameCardContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gameCardIcon: {
+    fontSize: 40,
+  },
+  gameCardName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginTop: 12,
+    textAlign: 'center',
   },
   menuContainer: {
     marginTop: 20,
@@ -1770,7 +1938,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     position: 'relative',
     width: '100%',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   rosaryBeadWrapper: {
     justifyContent: 'center',
@@ -1808,7 +1976,7 @@ const styles = StyleSheet.create({
     width: 2,
     backgroundColor: 'rgba(127, 29, 29, 0.4)',
     transform: [{translateX: -1}],
-    zIndex: 5,
+    zIndex: -1,
   },
   rosaryGradientMask: {
     position: 'absolute',
