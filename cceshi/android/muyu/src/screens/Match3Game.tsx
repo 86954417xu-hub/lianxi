@@ -1,24 +1,25 @@
-import React, {useState, useCallback, useEffect} from 'react';
+import React, {useState, useCallback, useEffect, useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Dimensions,
+  Vibration,
+  BackHandler,
   Animated,
   PanResponder,
-  Dimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 const GRID_COLS = 6;
-const GRID_ROWS = 7;
+const GRID_ROWS = 8;
+const CELL_GAP = 6;
+const GRID_BORDER = 12;
 const ANIMALS = ['🐼', '🐰', '🦊', '🐷', '🐸', '🐱', '🐥'];
 
 interface Cell {
   id: string;
   animal: string;
-  row: number;
-  col: number;
 }
 
 interface Match3GameProps {
@@ -29,98 +30,38 @@ const Match3Game: React.FC<Match3GameProps> = ({onBack}) => {
   const insets = useSafeAreaInsets();
   const [grid, setGrid] = useState<Cell[][]>([]);
   const [score, setScore] = useState(0);
-  const [selectedCell, setSelectedCell] = useState<{row: number; col: number} | null>(null);
   const [activeTool, setActiveTool] = useState<'hammer' | 'shuffle' | 'bomb' | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{row: number; col: number} | null>(null);
   const [animatingCells, setAnimatingCells] = useState<Set<string>>(new Set());
+  const [swappingCells, setSwappingCells] = useState<Set<string>>(new Set());
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  // 计算格子尺寸
+  const screenWidth = Dimensions.get('window').width;
+  const gridWidth = screenWidth - 32;
+  const cellSize = (gridWidth - GRID_BORDER * 2 - CELL_GAP * (GRID_COLS - 1)) / GRID_COLS;
+  const gridHeight = GRID_BORDER * 2 + cellSize * GRID_ROWS + CELL_GAP * (GRID_ROWS - 1);
 
-  // 初始化网格
-  const initializeGrid = useCallback(() => {
-    const newGrid: Cell[][] = [];
-    for (let row = 0; row < GRID_ROWS; row++) {
-      const rowCells: Cell[] = [];
-      for (let col = 0; col < GRID_COLS; col++) {
-        rowCells.push({
-          id: `${row}-${col}`,
-          animal: ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
-          row,
-          col,
-        });
-      }
-      newGrid.push(rowCells);
-    }
-    setGrid(newGrid);
-  }, []);
-
-  // 确保初始网格没有匹配
-  const initializeGridWithoutMatches = useCallback(() => {
-    let newGrid: Cell[][] = [];
-    let hasMatches = true;
-    
-    while (hasMatches) {
-      newGrid = [];
-      for (let row = 0; row < GRID_ROWS; row++) {
-        const rowCells: Cell[] = [];
-        for (let col = 0; col < GRID_COLS; col++) {
-          let animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-          
-          // 检查左边是否有两个相同的
-          if (col >= 2) {
-            const left1 = rowCells[col - 1]?.animal;
-            const left2 = rowCells[col - 2]?.animal;
-            while (animal === left1 && animal === left2) {
-              animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-            }
-          }
-          
-          // 检查上边是否有两个相同的
-          if (row >= 2) {
-            const up1 = newGrid[row - 1]?.[col]?.animal;
-            const up2 = newGrid[row - 2]?.[col]?.animal;
-            while (animal === up1 && animal === up2) {
-              animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-            }
-          }
-          
-          rowCells.push({
-            id: `${row}-${col}`,
-            animal,
-            row,
-            col,
-          });
-        }
-        newGrid.push(rowCells);
-      }
-      
-      // 检查是否还有匹配
-      hasMatches = findMatches(newGrid).length > 0;
-    }
-    
-    setGrid(newGrid);
-    setScore(0);
-  }, []);
-
-  useEffect(() => {
-    initializeGridWithoutMatches();
-  }, [initializeGridWithoutMatches]);
+  // 手势状态
+  const gestureRef = useRef<{
+    startX: number;
+    startY: number;
+    row: number;
+    col: number;
+    moved: boolean;
+  } | null>(null);
 
   // 查找所有匹配
   const findMatches = useCallback((currentGrid: Cell[][]): {row: number; col: number}[] => {
     const matches = new Set<string>();
     
-    // 检查横向匹配
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS - 2; col++) {
         const animal = currentGrid[row]?.[col]?.animal;
-        if (
-          animal &&
-          currentGrid[row]?.[col + 1]?.animal === animal &&
-          currentGrid[row]?.[col + 2]?.animal === animal
-        ) {
+        if (animal && currentGrid[row]?.[col + 1]?.animal === animal && currentGrid[row]?.[col + 2]?.animal === animal) {
           matches.add(`${row}-${col}`);
           matches.add(`${row}-${col + 1}`);
           matches.add(`${row}-${col + 2}`);
-          
-          // 检查更长的匹配
           let extra = 3;
           while (col + extra < GRID_COLS && currentGrid[row]?.[col + extra]?.animal === animal) {
             matches.add(`${row}-${col + extra}`);
@@ -130,20 +71,13 @@ const Match3Game: React.FC<Match3GameProps> = ({onBack}) => {
       }
     }
     
-    // 检查纵向匹配
     for (let col = 0; col < GRID_COLS; col++) {
       for (let row = 0; row < GRID_ROWS - 2; row++) {
         const animal = currentGrid[row]?.[col]?.animal;
-        if (
-          animal &&
-          currentGrid[row + 1]?.[col]?.animal === animal &&
-          currentGrid[row + 2]?.[col]?.animal === animal
-        ) {
+        if (animal && currentGrid[row + 1]?.[col]?.animal === animal && currentGrid[row + 2]?.[col]?.animal === animal) {
           matches.add(`${row}-${col}`);
           matches.add(`${row + 1}-${col}`);
           matches.add(`${row + 2}-${col}`);
-          
-          // 检查更长的匹配
           let extra = 3;
           while (row + extra < GRID_ROWS && currentGrid[row + extra]?.[col]?.animal === animal) {
             matches.add(`${row + extra}-${col}`);
@@ -159,261 +93,373 @@ const Match3Game: React.FC<Match3GameProps> = ({onBack}) => {
     });
   }, []);
 
-  // 消除匹配并下落
-  const processMatches = useCallback(async () => {
-    const matches = findMatches(grid);
-    if (matches.length === 0) return false;
-    
-    // 添加动画效果
-    const animatingKeys = new Set(matches.map(m => `${m.row}-${m.col}`));
-    setAnimatingCells(animatingKeys);
-    
-    // 等待动画
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // 计算分数
-    setScore(prev => prev + matches.length * 10);
-    
-    // 创建新网格
-    const newGrid = grid.map(row => row.map(cell => ({...cell})));
-    
-    // 标记消除的格子
-    matches.forEach(({row, col}) => {
-      newGrid[row][col] = {...newGrid[row][col], animal: ''};
+  // 初始化网格
+  const initializeGrid = useCallback(() => {
+    const newGrid: Cell[][] = [];
+    for (let row = 0; row < GRID_ROWS; row++) {
+      const rowCells: Cell[] = [];
+      for (let col = 0; col < GRID_COLS; col++) {
+        let animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+        if (col >= 2) {
+          const left1 = rowCells[col - 1]?.animal;
+          const left2 = rowCells[col - 2]?.animal;
+          while (animal === left1 && animal === left2) {
+            animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+          }
+        }
+        if (row >= 2) {
+          const up1 = newGrid[row - 1]?.[col]?.animal;
+          const up2 = newGrid[row - 2]?.[col]?.animal;
+          while (animal === up1 && animal === up2) {
+            animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+          }
+        }
+        rowCells.push({id: `${row}-${col}-${Date.now()}-${Math.random()}`, animal});
+      }
+      newGrid.push(rowCells);
+    }
+    setGrid(newGrid);
+    setScore(0);
+    setActiveTool(null);
+    setSelectedCell(null);
+    setIsProcessing(false);
+  }, []);
+
+  useEffect(() => {
+    initializeGrid();
+  }, [initializeGrid]);
+
+  // 系统返回键
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => backHandler.remove();
+  }, [onBack]);
+
+  // 下落和填充
+  const dropAndFill = useCallback((currentGrid: Cell[][], cellsToRemove: {row: number; col: number}[]) => {
+    const newGrid = currentGrid.map(row => row.map(cell => ({...cell})));
+    cellsToRemove.forEach(({row, col}) => {
+      if (newGrid[row]?.[col]) newGrid[row][col].animal = '';
     });
     
-    // 下落填充
     for (let col = 0; col < GRID_COLS; col++) {
-      let emptyRow = GRID_ROWS - 1;
-      
-      // 从下往上找空位
+      let writeRow = GRID_ROWS - 1;
       for (let row = GRID_ROWS - 1; row >= 0; row--) {
         if (newGrid[row][col].animal !== '') {
-          if (row !== emptyRow) {
-            newGrid[emptyRow][col] = {...newGrid[row][col], row: emptyRow};
-            newGrid[row][col] = {...newGrid[row][col], animal: ''};
+          if (row !== writeRow) {
+            newGrid[writeRow][col] = {...newGrid[row][col]};
+            newGrid[row][col] = {id: '', animal: ''};
           }
-          emptyRow--;
+          writeRow--;
         }
       }
-      
-      // 填充新动物
-      for (let row = emptyRow; row >= 0; row--) {
+      for (let row = writeRow; row >= 0; row--) {
         newGrid[row][col] = {
-          id: `new-${row}-${col}-${Date.now()}`,
+          id: `new-${row}-${col}-${Date.now()}-${Math.random()}`,
           animal: ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
-          row,
-          col,
         };
       }
     }
-    
-    setGrid(newGrid);
-    setAnimatingCells(new Set());
-    
-    return true;
-  }, [grid, findMatches]);
+    return newGrid;
+  }, []);
 
-  // 连锁消除
-  useEffect(() => {
-    if (grid.length === 0) return;
+  // 消除并连锁
+  const removeAndChain = useCallback((startGrid: Cell[][], firstMatches: {row: number; col: number}[]) => {
+    setIsProcessing(true);
+    let currentGrid = startGrid;
+    let matches = firstMatches;
     
-    const checkAndProcess = async () => {
-      const hasMatches = findMatches(grid).length > 0;
-      if (hasMatches) {
-        await processMatches();
+    const doRemove = () => {
+      if (matches.length === 0) {
+        setIsProcessing(false);
+        return;
       }
+      
+      Vibration.vibrate(30);
+      setAnimatingCells(new Set(matches.map(m => `${m.row}-${m.col}`)));
+      setScore(prev => prev + matches.length * 10);
+      
+      setTimeout(() => {
+        setAnimatingCells(new Set());
+        currentGrid = dropAndFill(currentGrid, matches);
+        setGrid(currentGrid);
+        
+        setTimeout(() => {
+          matches = findMatches(currentGrid);
+          if (matches.length > 0) {
+            doRemove();
+          } else {
+            setIsProcessing(false);
+          }
+        }, 100);
+      }, 200);
     };
     
-    const timer = setTimeout(checkAndProcess, 100);
-    return () => clearTimeout(timer);
-  }, [grid, findMatches, processMatches]);
+    doRemove();
+  }, [findMatches, dropAndFill]);
 
-  // 交换方块
+  // 交换格子
   const swapCells = useCallback((row1: number, col1: number, row2: number, col2: number) => {
-    const newGrid = grid.map(row => row.map(cell => ({...cell})));
+    if (isProcessing) return;
     
-    // 检查是否相邻
-    const isAdjacent = 
-      (Math.abs(row1 - row2) === 1 && col1 === col2) ||
-      (Math.abs(col1 - col2) === 1 && row1 === row2);
+    setSwappingCells(new Set([`${row1}-${col1}`, `${row2}-${col2}`]));
+    Vibration.vibrate(15);
     
-    if (!isAdjacent) return;
-    
-    // 交换
-    const temp = newGrid[row1][col1];
-    newGrid[row1][col1] = {...newGrid[row2][col2], row: row1, col: col1};
-    newGrid[row2][col2] = {...temp, row: row2, col: col2};
-    
-    // 检查是否有匹配
-    const matches = findMatches(newGrid);
-    if (matches.length > 0) {
-      setGrid(newGrid);
-    }
-  }, [grid, findMatches]);
-
-  // 锤子道具 - 消除单个
-  const useHammer = useCallback((row: number, col: number) => {
-    const newGrid = grid.map(r => r.map(cell => ({...cell})));
-    newGrid[row][col] = {...newGrid[row][col], animal: ''};
-    setScore(prev => prev + 10);
-    
-    // 下落填充
-    for (let c = col; c <= col; c++) {
-      let emptyRow = GRID_ROWS - 1;
-      for (let r = GRID_ROWS - 1; r >= 0; r--) {
-        if (newGrid[r][c].animal !== '') {
-          if (r !== emptyRow) {
-            newGrid[emptyRow][c] = {...newGrid[r][c], row: emptyRow};
-            newGrid[r][c] = {...newGrid[r][c], animal: ''};
-          }
-          emptyRow--;
+    setTimeout(() => {
+      setSwappingCells(new Set());
+      
+      setGrid(prevGrid => {
+        if (!prevGrid[row1]?.[col1] || !prevGrid[row2]?.[col2]) return prevGrid;
+        
+        const newGrid = prevGrid.map(r => r.map(c => ({...c})));
+        const temp = {...newGrid[row1][col1]};
+        newGrid[row1][col1] = {...newGrid[row2][col2]};
+        newGrid[row2][col2] = temp;
+        
+        const matches = findMatches(newGrid);
+        if (matches.length > 0) {
+          removeAndChain(newGrid, matches);
+          return newGrid;
         }
-      }
-      for (let r = emptyRow; r >= 0; r--) {
-        newGrid[r][c] = {
-          id: `new-${r}-${c}-${Date.now()}`,
-          animal: ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
-          row: r,
-          col: c,
-        };
-      }
-    }
-    
-    setGrid(newGrid);
-    setActiveTool(null);
-  }, [grid]);
-
-  // 重排道具 - 打乱所有方块
-  const useShuffle = useCallback(() => {
-    const animals: string[] = [];
-    grid.forEach(row => row.forEach(cell => animals.push(cell.animal)));
-    
-    // Fisher-Yates 洗牌
-    for (let i = animals.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [animals[i], animals[j]] = [animals[j], animals[i]];
-    }
-    
-    const newGrid = grid.map((row, rowIdx) =>
-      row.map((cell, colIdx) => ({
-        ...cell,
-        animal: animals[rowIdx * GRID_COLS + colIdx],
-      }))
-    );
-    
-    setGrid(newGrid);
-    setActiveTool(null);
-  }, [grid]);
-
-  // 炸弹道具 - 消除3x3范围
-  const useBomb = useCallback((centerRow: number, centerCol: number) => {
-    const newGrid = grid.map(r => r.map(cell => ({...cell})));
-    let removedCount = 0;
-    
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const r = centerRow + dr;
-        const c = centerCol + dc;
-        if (r >= 0 && r < GRID_ROWS && c >= 0 && c < GRID_COLS) {
-          if (newGrid[r][c].animal !== '') {
-            newGrid[r][c] = {...newGrid[r][c], animal: ''};
-            removedCount++;
-          }
-        }
-      }
-    }
-    
-    setScore(prev => prev + removedCount * 10);
-    
-    // 下落填充所有列
-    for (let col = 0; col < GRID_COLS; col++) {
-      let emptyRow = GRID_ROWS - 1;
-      for (let row = GRID_ROWS - 1; row >= 0; row--) {
-        if (newGrid[row][col].animal !== '') {
-          if (row !== emptyRow) {
-            newGrid[emptyRow][col] = {...newGrid[row][col], row: emptyRow};
-            newGrid[row][col] = {...newGrid[row][col], animal: ''};
-          }
-          emptyRow--;
-        }
-      }
-      for (let row = emptyRow; row >= 0; row--) {
-        newGrid[row][col] = {
-          id: `new-${row}-${col}-${Date.now()}`,
-          animal: ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
-          row,
-          col,
-        };
-      }
-    }
-    
-    setGrid(newGrid);
-    setActiveTool(null);
-  }, [grid]);
+        Vibration.vibrate([0, 20, 50, 20]);
+        return prevGrid;
+      });
+    }, 150);
+  }, [findMatches, removeAndChain, isProcessing]);
 
   // 处理格子点击
   const handleCellPress = useCallback((row: number, col: number) => {
+    if (isProcessing) return;
+    
     if (activeTool === 'hammer') {
-      useHammer(row, col);
-    } else if (activeTool === 'bomb') {
-      useBomb(row, col);
-    } else if (selectedCell) {
-      swapCells(selectedCell.row, selectedCell.col, row, col);
+      setAnimatingCells(new Set([`${row}-${col}`]));
+      Vibration.vibrate(20);
+      setScore(prev => prev + 10);
+      setTimeout(() => {
+        setAnimatingCells(new Set());
+        setGrid(prevGrid => {
+          const newGrid = dropAndFill(prevGrid, [{row, col}]);
+          const matches = findMatches(newGrid);
+          if (matches.length > 0) {
+            removeAndChain(newGrid, matches);
+          }
+          return newGrid;
+        });
+      }, 250);
+      setActiveTool(null);
+      return;
+    }
+    
+    if (activeTool === 'bomb') {
+      const cellsToRemove: {row: number; col: number}[] = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const r = row + dr, c = col + dc;
+          if (r >= 0 && r < GRID_ROWS && c >= 0 && c < GRID_COLS) {
+            cellsToRemove.push({row: r, col: c});
+          }
+        }
+      }
+      setAnimatingCells(new Set(cellsToRemove.map(m => `${m.row}-${m.col}`)));
+      Vibration.vibrate(40);
+      setScore(prev => prev + cellsToRemove.length * 10);
+      setTimeout(() => {
+        setAnimatingCells(new Set());
+        setGrid(prevGrid => {
+          const newGrid = dropAndFill(prevGrid, cellsToRemove);
+          const matches = findMatches(newGrid);
+          if (matches.length > 0) {
+            removeAndChain(newGrid, matches);
+          }
+          return newGrid;
+        });
+      }, 250);
+      setActiveTool(null);
+      return;
+    }
+    
+    if (selectedCell === null) {
+      setSelectedCell({row, col});
+    } else if (selectedCell.row === row && selectedCell.col === col) {
       setSelectedCell(null);
     } else {
-      setSelectedCell({row, col});
+      const isAdjacent = 
+        (Math.abs(selectedCell.row - row) === 1 && selectedCell.col === col) ||
+        (Math.abs(selectedCell.col - col) === 1 && selectedCell.row === row);
+      
+      if (isAdjacent) {
+        swapCells(selectedCell.row, selectedCell.col, row, col);
+        setSelectedCell(null);
+      } else {
+        setSelectedCell({row, col});
+      }
     }
-  }, [activeTool, selectedCell, useHammer, useBomb, swapCells]);
+  }, [activeTool, selectedCell, swapCells, dropAndFill, findMatches, removeAndChain, isProcessing]);
 
-  // 拖拽处理
+  // 重排道具
+  const useShuffle = useCallback(() => {
+    if (isProcessing) return;
+    
+    Vibration.vibrate(30);
+    setGrid(prevGrid => {
+      const animals: string[] = [];
+      prevGrid.forEach(row => row.forEach(cell => animals.push(cell.animal)));
+      for (let i = animals.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [animals[i], animals[j]] = [animals[j], animals[i]];
+      }
+      const newGrid = prevGrid.map((row, rowIdx) =>
+        row.map((cell, colIdx) => ({...cell, animal: animals[rowIdx * GRID_COLS + colIdx]}))
+      );
+      const matches = findMatches(newGrid);
+      if (matches.length > 0) {
+        removeAndChain(newGrid, matches);
+      }
+      return newGrid;
+    });
+    setActiveTool(null);
+  }, [findMatches, removeAndChain, isProcessing]);
+
+  // 创建格子手势响应器
   const createPanResponder = useCallback((row: number, col: number) => {
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => !activeTool,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const {dx, dy} = gestureState;
-        return Math.abs(dx) > 10 || Math.abs(dy) > 10;
+      onStartShouldSetPanResponder: () => !isProcessing,
+      onMoveShouldSetPanResponder: (_, gesture) => {
+        return Math.abs(gesture.dx) > 10 || Math.abs(gesture.dy) > 10;
       },
-      onPanResponderRelease: (_, gestureState) => {
-        const {dx, dy} = gestureState;
-        const threshold = 30;
+      onPanResponderGrant: (evt) => {
+        gestureRef.current = {
+          startX: evt.nativeEvent.locationX,
+          startY: evt.nativeEvent.locationY,
+          row,
+          col,
+          moved: false,
+        };
+        // 立即选中的逻辑移到 release
+      },
+      onPanResponderMove: () => {
+        if (gestureRef.current) {
+          gestureRef.current.moved = true;
+        }
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (!gestureRef.current) return;
         
-        let targetRow = row;
-        let targetCol = col;
+        const {row: startRow, col: startCol, moved} = gestureRef.current;
+        const threshold = cellSize * 0.3;
         
-        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
-          targetCol = dx > 0 ? col + 1 : col - 1;
-        } else if (Math.abs(dy) > threshold) {
-          targetRow = dy > 0 ? row + 1 : row - 1;
+        // 如果有滑动且没有激活道具
+        if (!activeTool && moved && (Math.abs(gesture.dx) > threshold || Math.abs(gesture.dy) > threshold)) {
+          let targetRow = startRow;
+          let targetCol = startCol;
+
+          if (Math.abs(gesture.dx) > Math.abs(gesture.dy)) {
+            targetCol = gesture.dx > 0 ? startCol + 1 : startCol - 1;
+          } else {
+            targetRow = gesture.dy > 0 ? startRow + 1 : startRow - 1;
+          }
+
+          if (targetRow >= 0 && targetRow < GRID_ROWS && targetCol >= 0 && targetCol < GRID_COLS) {
+            swapCells(startRow, startCol, targetRow, targetCol);
+            setSelectedCell(null);
+          }
+        } else {
+          // 点击处理 - 这里会处理道具和选中交换
+          if (activeTool) {
+            // 道具模式直接执行道具效果
+            handleCellPress(startRow, startCol);
+          } else {
+            // 普通模式：如果已有选中且相邻，交换；否则选中当前
+            if (selectedCell) {
+              const isAdjacent =
+                (Math.abs(selectedCell.row - startRow) === 1 && selectedCell.col === startCol) ||
+                (Math.abs(selectedCell.col - startCol) === 1 && selectedCell.row === startRow);
+              if (isAdjacent) {
+                swapCells(selectedCell.row, selectedCell.col, startRow, startCol);
+                setSelectedCell(null);
+              } else if (selectedCell.row !== startRow || selectedCell.col !== startCol) {
+                setSelectedCell({row: startRow, col: startCol});
+              }
+            } else {
+              setSelectedCell({row: startRow, col: startCol});
+            }
+          }
         }
         
-        if (
-          targetRow >= 0 && targetRow < GRID_ROWS &&
-          targetCol >= 0 && targetCol < GRID_COLS &&
-          (targetRow !== row || targetCol !== col)
-        ) {
-          swapCells(row, col, targetRow, targetCol);
-        }
+        gestureRef.current = null;
       },
     });
-  }, [activeTool, swapCells]);
+  }, [cellSize, isProcessing, activeTool, swapCells, handleCellPress, selectedCell]);
 
-  const screenWidth = Dimensions.get('window').width;
-  const cellSize = (screenWidth - 48) / GRID_COLS;
+  // 格子组件
+  const CellComponent = ({rowIdx, colIdx}: {rowIdx: number; colIdx: number}) => {
+    const cell = grid[rowIdx]?.[colIdx];
+    if (!cell) return null;
+    
+    const isSelected = selectedCell?.row === rowIdx && selectedCell?.col === colIdx;
+    const isAnimating = animatingCells.has(`${rowIdx}-${colIdx}`);
+    const isSwapping = swappingCells.has(`${rowIdx}-${colIdx}`);
+    
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const rotateAnim = useRef(new Animated.Value(0)).current;
+    const panResponder = useRef(createPanResponder(rowIdx, colIdx)).current;
+    
+    useEffect(() => {
+      Animated.spring(scaleAnim, {
+        toValue: isSelected ? 1.1 : 1,
+        useNativeDriver: true,
+        friction: 5,
+      }).start();
+    }, [isSelected, scaleAnim]);
+    
+    useEffect(() => {
+      if (isSwapping) {
+        Animated.sequence([
+          Animated.timing(rotateAnim, {toValue: 1, duration: 50, useNativeDriver: true}),
+          Animated.timing(rotateAnim, {toValue: -1, duration: 50, useNativeDriver: true}),
+          Animated.timing(rotateAnim, {toValue: 0, duration: 50, useNativeDriver: true}),
+        ]).start();
+      }
+    }, [isSwapping, rotateAnim]);
+    
+    const rotate = rotateAnim.interpolate({
+      inputRange: [-1, 1],
+      outputRange: ['-5deg', '5deg'],
+    });
+    
+    return (
+      <Animated.View
+        style={[
+          styles.cell,
+          {
+            width: cellSize,
+            height: cellSize,
+            left: GRID_BORDER + colIdx * (cellSize + CELL_GAP),
+            top: GRID_BORDER + rowIdx * (cellSize + CELL_GAP),
+            transform: [{scale: scaleAnim}, {rotate: rotate}],
+          },
+          isAnimating && styles.animatingCell,
+        ]}
+        {...panResponder.panHandlers}>
+        <Text style={styles.animalText}>{cell.animal}</Text>
+      </Animated.View>
+    );
+  };
 
   return (
     <View style={[styles.container, {paddingTop: insets.top}]}>
-      {/* 顶部导航 */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingsButton}>
+        <View style={styles.backButton}>
+          <Text style={styles.backIcon} onPress={onBack}>←</Text>
+        </View>
+        <View style={styles.settingsButton}>
           <Text style={styles.settingsIcon}>⚙</Text>
-        </TouchableOpacity>
+        </View>
       </View>
 
-      {/* 分数和步数 */}
       <View style={styles.statsContainer}>
         <View style={styles.statBox}>
           <Text style={styles.statLabel}>分数</Text>
@@ -425,228 +471,141 @@ const Match3Game: React.FC<Match3GameProps> = ({onBack}) => {
         </View>
       </View>
 
-      {/* 游戏网格 */}
-      <View style={styles.gridContainer}>
-        <View style={styles.grid}>
+      <View style={styles.gridWrapper}>
+        <View style={[styles.grid, {width: gridWidth, height: gridHeight}]}>
           {grid.map((row, rowIdx) =>
-            row.map((cell, colIdx) => {
-              const isSelected = selectedCell?.row === rowIdx && selectedCell?.col === colIdx;
-              const isAnimating = animatingCells.has(`${rowIdx}-${colIdx}`);
-              
-              return (
-                <TouchableOpacity
-                  key={cell.id}
-                  style={[
-                    styles.cell,
-                    {
-                      width: cellSize,
-                      height: cellSize,
-                    },
-                    isSelected && styles.selectedCell,
-                    isAnimating && styles.animatingCell,
-                    activeTool === 'hammer' && styles.hammerCursor,
-                    activeTool === 'bomb' && styles.bombCursor,
-                  ]}
-                  onPress={() => handleCellPress(rowIdx, colIdx)}
-                  {...createPanResponder(rowIdx, colIdx).panHandlers}>
-                  <Text style={styles.animalText}>{cell.animal}</Text>
-                </TouchableOpacity>
-              );
-            }),
+            row.map((_, colIdx) => (
+              <CellComponent key={`${rowIdx}-${colIdx}`} rowIdx={rowIdx} colIdx={colIdx} />
+            )),
           )}
         </View>
       </View>
 
-      {/* 道具栏 */}
       <View style={[styles.toolsContainer, {paddingBottom: insets.bottom + 20}]}>
-        <TouchableOpacity
-          style={[styles.toolButton, activeTool === 'hammer' && styles.activeTool]}
-          onPress={() => setActiveTool(activeTool === 'hammer' ? null : 'hammer')}>
+        <View style={[styles.toolButton, activeTool === 'hammer' && styles.activeTool]}>
           <View style={[styles.toolIcon, {backgroundColor: '#ff8fab'}]}>
-            <Text style={styles.toolEmoji}>🔨</Text>
+            <Text style={styles.toolEmoji} onPress={() => setActiveTool(activeTool === 'hammer' ? null : 'hammer')}>🔨</Text>
           </View>
           <Text style={styles.toolLabel}>锤子</Text>
-        </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          style={[styles.toolButtonLarge, activeTool === 'shuffle' && styles.activeToolLarge]}
-          onPress={useShuffle}>
+        <View style={styles.toolButtonLarge}>
           <View style={[styles.toolIconLarge, {backgroundColor: '#f4d125'}]}>
-            <Text style={styles.toolEmojiLarge}>🔀</Text>
+            <Text style={styles.toolEmojiLarge} onPress={useShuffle}>🔀</Text>
           </View>
           <Text style={styles.toolLabelLarge}>重排</Text>
-        </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          style={[styles.toolButton, activeTool === 'bomb' && styles.activeTool]}
-          onPress={() => setActiveTool(activeTool === 'bomb' ? null : 'bomb')}>
+        <View style={[styles.toolButton, activeTool === 'bomb' && styles.activeTool]}>
           <View style={[styles.toolIcon, {backgroundColor: '#8ecae6'}]}>
-            <Text style={styles.toolEmoji}>💣</Text>
+            <Text style={styles.toolEmoji} onPress={() => setActiveTool(activeTool === 'bomb' ? null : 'bomb')}>💣</Text>
           </View>
           <Text style={styles.toolLabel}>炸弹</Text>
-        </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#221f10',
-  },
+  container: {flex: 1, backgroundColor: '#221f10'},
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    height: 54,
   },
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backIcon: {
-    fontSize: 28,
-    color: '#fff',
-  },
+  backIcon: {fontSize: 24, color: '#fff'},
   settingsButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsIcon: {
-    fontSize: 24,
-    color: '#fff',
-  },
+  settingsIcon: {fontSize: 20, color: '#fff'},
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    gap: 16,
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 12,
   },
   statBox: {
     flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 12,
+    padding: 10,
     alignItems: 'center',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
     color: '#666',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '900',
-  },
-  gridContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
+  statValue: {fontSize: 24, fontWeight: '900'},
+  gridWrapper: {flex: 1, alignItems: 'center', justifyContent: 'center'},
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    width: '100%',
-    maxWidth: 400,
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: 24,
-    padding: 12,
-    borderWidth: 4,
+    borderRadius: 20,
+    borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   cell: {
+    position: 'absolute',
     backgroundColor: '#322e1b',
-    borderRadius: 12,
-    margin: 4,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 0,
-    borderBottomWidth: 4,
+    borderBottomWidth: 3,
     borderBottomColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  selectedCell: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{scale: 1.1}],
   },
   animatingCell: {
     opacity: 0.3,
     transform: [{scale: 0.8}],
   },
-  hammerCursor: {
-    borderWidth: 2,
-    borderColor: '#ff8fab',
-  },
-  bombCursor: {
-    borderWidth: 2,
-    borderColor: '#8ecae6',
-  },
-  animalText: {
-    fontSize: 28,
-  },
+  animalText: {fontSize: 24},
   toolsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'flex-end',
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
-  toolButton: {
-    alignItems: 'center',
-  },
-  toolButtonLarge: {
-    alignItems: 'center',
-  },
-  activeTool: {
-    opacity: 0.7,
-  },
-  activeToolLarge: {
-    opacity: 0.7,
-  },
+  toolButton: {alignItems: 'center'},
+  toolButtonLarge: {alignItems: 'center'},
+  activeTool: {opacity: 0.7},
   toolIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   toolIconLarge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
-  toolEmoji: {
-    fontSize: 28,
-  },
-  toolEmojiLarge: {
-    fontSize: 36,
-  },
-  toolLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  toolLabelLarge: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
+  toolEmoji: {fontSize: 24},
+  toolEmojiLarge: {fontSize: 30},
+  toolLabel: {fontSize: 11, fontWeight: 'bold', color: 'rgba(255, 255, 255, 0.6)'},
+  toolLabelLarge: {fontSize: 12, fontWeight: 'bold', color: '#fff'},
 });
 
 export default Match3Game;

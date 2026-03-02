@@ -1323,9 +1323,13 @@ const WoodenFishApp: React.FC = () => {
       </Modal>
 
       {/* 消消乐游戏 */}
-      {showMatch3Game && (
+      <Modal
+        visible={showMatch3Game}
+        animationType="slide"
+        presentationStyle="overFullScreen"
+        statusBarTranslucent={true}>
         <Match3Game onBack={() => setShowMatch3Game(false)} />
-      )}
+      </Modal>
     </SafeAreaView>
   );
 };
