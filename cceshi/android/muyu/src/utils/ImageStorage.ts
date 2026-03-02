@@ -11,7 +11,7 @@ export const initImageCache = async () => {
   }
 };
 
-export const saveImage = async (type: 'woodFish'): Promise<string | null> => {
+export const saveImage = async (type: 'woodFish' | 'userAvatar'): Promise<string | null> => {
   try {
     await initImageCache();
 
@@ -47,7 +47,7 @@ export const saveImage = async (type: 'woodFish'): Promise<string | null> => {
   }
 };
 
-export const getSavedImagePath = async (type: 'woodFish'): Promise<string | null> => {
+export const getSavedImagePath = async (type: 'woodFish' | 'userAvatar'): Promise<string | null> => {
   try {
     const path = await AsyncStorage.getItem(`${type}ImagePath`);
     if (path && await RNFS.exists(path)) {

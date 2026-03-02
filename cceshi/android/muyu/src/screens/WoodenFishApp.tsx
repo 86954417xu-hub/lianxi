@@ -16,6 +16,7 @@ import {
   Dimensions,
   ScrollView,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import DocumentPicker, {types} from 'react-native-document-picker';
 import WoodFish from '../components/WoodFish';
 import GradientBead from '../components/GradientBead';
@@ -35,6 +36,7 @@ interface FloatingText {
 }
 
 const WoodenFishApp: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const [count, setCount] = useState<number>(0);
   const [woodFishImage, setWoodFishImage] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState<boolean>(false);
@@ -624,7 +626,7 @@ const WoodenFishApp: React.FC = () => {
 
   const renderHomeScreen = () => (
     <View style={styles.homeContent}>
-      <View style={styles.header}>
+      <View style={[styles.header, {paddingTop: insets.top + 15}]}>
         <TouchableOpacity onPress={openCountPrefixEdit} activeOpacity={0.7} style={styles.countContainer}>
           <Text style={styles.countText}>{countPrefix} {count} 下</Text>
           <TouchableOpacity onPress={handleResetCount} activeOpacity={0.7} style={styles.resetCountButton}>
@@ -730,7 +732,7 @@ const WoodenFishApp: React.FC = () => {
       return (
         <View style={styles.rosaryContainer} {...rosaryPanResponder.panHandlers}>
           {/* 头部 - 功德计数 */}
-          <View style={styles.rosaryHeader} pointerEvents="box-none">
+          <View style={[styles.rosaryHeader, {paddingTop: insets.top + 15}]} pointerEvents="box-none">
             <View style={styles.rosaryTitleContainer}>
               <Text style={styles.rosaryTitleText}>累积功德</Text>
               <Text style={styles.rosaryCountNumber}>{rosaryCount}</Text>
@@ -753,11 +755,11 @@ const WoodenFishApp: React.FC = () => {
 
 
 
+        {/* 红色串线 - 放在外层容器中居中 */}
+        <View style={styles.rosaryString} />
+
         {/* 念珠滚动区域 */}
         <View style={styles.rosaryBeadsContainer} pointerEvents="box-none">
-          {/* 红色串线 */}
-          <View style={styles.rosaryString} />
-
           {/* 珠子容器 */}
           <Animated.View
             style={{
@@ -842,14 +844,8 @@ const WoodenFishApp: React.FC = () => {
     return (
       <View style={styles.profileContainer}>
         {/* 头部 */}
-        <View style={styles.profileHeader}>
+        <View style={[styles.profileHeader, {paddingTop: insets.top + 15}]}>
           <Text style={styles.profileHeaderText}>个人中心</Text>
-          <TouchableOpacity
-            style={styles.profileSettingsButton}
-            activeOpacity={0.7}
-            onPress={() => setShowSettingsModal(true)}>
-            <Text style={styles.profileSettingsIcon}>⚙️</Text>
-          </TouchableOpacity>
         </View>
 
         {/* 用户卡片 */}
@@ -1735,14 +1731,15 @@ const styles = StyleSheet.create({
   rosaryContainer: {
     flex: 1,
     backgroundColor: '#F9F9F9',
+    position: 'relative',
   },
   rosaryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 56,
-    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 3,
     backgroundColor: '#F9F9F9',
     zIndex: 10,
   },
@@ -1793,25 +1790,25 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   rosaryTitleText: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: '#2C2C2C',
-    marginRight: 12,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginRight: 8,
   },
   rosaryCountNumber: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#8DA399',
+    color: '#333',
   },
   rosaryString: {
     position: 'absolute',
     left: '50%',
-    top: 0,
-    bottom: 0,
+    top: 100,
+    bottom: 80,
     width: 2,
     backgroundColor: 'rgba(127, 29, 29, 0.4)',
     transform: [{translateX: -1}],
-    zIndex: -1,
+    zIndex: 5,
   },
   rosaryGradientMask: {
     position: 'absolute',
